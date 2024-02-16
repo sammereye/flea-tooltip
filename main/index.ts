@@ -33,6 +33,7 @@ app.on('ready', async () => {
   ocr.initialize();
   alwaysOnTopProcess.initialize();
   tooltipWindow.on('ready-to-show', () => {
+    tooltipWindow.webContents.openDevTools();
     console.log("Tooltip window is ready to show");
   });
 

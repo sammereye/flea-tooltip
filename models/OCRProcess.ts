@@ -44,6 +44,7 @@ export default class OCRProcess {
         if (item) {
           const mousePos = screen.getCursorScreenPoint();
           if (mousePos.x === x && mousePos.y === y) {
+            console.log(item);
             tooltipWindow.webContents.send(IpcConstants.NewTooltipItem, item);
             setTimeout(() => {
               tooltipWindow.setPosition(mousePos.x + 13, mousePos.y + 13);
