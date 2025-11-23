@@ -10,6 +10,9 @@ export async function setTooltipItem(item: Item | null) {
 }
 
 // @ts-expect-error
-window.electron.receive(IpcConstants.NewTooltipItem, (event: any, newItem: Item | null) => {
-  setTooltipItem(newItem);
-});
+window.electron.receive(
+  IpcConstants.NewTooltipItem,
+  (event: any, newItem: Item | null) => {
+    setTooltipItem(newItem);
+  }
+);

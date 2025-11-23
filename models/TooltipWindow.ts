@@ -11,7 +11,7 @@ export default class TooltipWindow extends BrowserWindow {
       width: 500,
       height: 80,
       backgroundColor: "#00000000",
-      // skipTaskbar: true,
+      skipTaskbar: true,
       resizable: false,
       webPreferences: {
         preload: TOOLTIP_WINDOW_PRELOAD_WEBPACK_ENTRY,
@@ -19,8 +19,5 @@ export default class TooltipWindow extends BrowserWindow {
     });
 
     this.loadURL(TOOLTIP_WINDOW_WEBPACK_ENTRY);
-    // this.webContents.openDevTools();
-
-    // this.setMenu(null);
   }
 }

@@ -6,6 +6,7 @@ import IpcConstants from "./IpcConstants";
 import path from "path";
 import { isDev } from "../utils";
 import robot from "robotjs";
+import log from "electron-log";
 
 export default class OCRProcess {
   constructor(items: Items, priceListWindow: BrowserWindow) {
@@ -19,7 +20,7 @@ export default class OCRProcess {
 
   initialize(): void {
     const onNewData = this.onNewData;
-    console.log("Initializing OCR process");
+    isDev() ? console.log("Initializing OCR process") : log.info("Initializing OCR process");
     // const ocrProcess = ;
     const ocrProcess = isDev()
       ? spawn(path.join(app.getAppPath(), "/lib/ocr/ocr_cpp.exe"))
@@ -30,14 +31,15 @@ export default class OCRProcess {
 
     ocrProcess.stderr.setEncoding("utf-8");
     ocrProcess.stderr.on("data", function (data) {
-      console.log("stderr: " + data);
+      isDev() ? console.log("stderr: " + data) : log.error("stderr: " + data);
     });
 
     ocrProcess.on("close", function (code) {
-      console.log("closing code: " + code);
+      isDev() ? console.log("closing code: " + code) : log.info("closing code: " + code);
     });
 
-    console.log("Successfully initialized OCR process");
+    isDev() ? console.log("Successfully initialized OCR process") : log.info("Successfully initialized OCR process");
+    return;
   }
 
   onNewData(data: any): void {
@@ -87,7 +89,7 @@ export default class OCRProcess {
             );
             setTimeout(() => {
               this.tooltipWindow.setPosition(electronMousePos.x + 13, electronMousePos.y + 13);
-              this.tooltipWindow.setBounds({ width: 500, height: 150 });
+              this.tooltipWindow.setBounds({ width: 500, height: 200 });
             }, 10);
           }
         }

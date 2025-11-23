@@ -12,8 +12,6 @@ export default function PriceList() {
   const priceListHook = useHookstate(PRICE_LIST);
   const priceList = priceListHook.get();
 
-  console.log("MEOWMEOWMEOW");
-
   if (priceList) {
     const priceListSorted = [...priceList].sort(
       (item1, item2) =>
