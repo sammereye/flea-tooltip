@@ -9,7 +9,7 @@ export default class TooltipWindow extends BrowserWindow {
       frame: false,
       transparent: true,
       width: 500,
-      height: 50,
+      height: 80,
       backgroundColor: "#00000000",
       // skipTaskbar: true,
       resizable: false,

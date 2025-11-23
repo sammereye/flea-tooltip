@@ -10,21 +10,22 @@ export default class Item {
 }
 
 type ItemPrices = {
-  latest: number,
-  avgDay: number,
-  avgWeek: number,
-  trader: TraderPrice
-}
+  latest: number;
+  avgDay: number;
+  avgWeek: number;
+  trader: TraderPrice;
+};
 
 type TraderPrice = {
-  name: string,
-  price: number
-}
+  name: string;
+  price: number;
+};
 
 export type ItemTask = {
-  task: string,
-  count: number
-}
+  task: string;
+  count: number;
+  inRaid: boolean;
+};
 
 export class ClientItem extends Item {
   count: number;

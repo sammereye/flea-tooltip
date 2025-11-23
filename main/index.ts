@@ -46,10 +46,13 @@ app.on("ready", async () => {
   items = new Items();
   await items.fetchItems();
 
-  setInterval(() => {
-    console.log("Refetching updated data");
-    items.fetchItems();
-  }, 1000 * 60 * 5);
+  setInterval(
+    () => {
+      console.log("Refetching updated data");
+      items.fetchItems();
+    },
+    1000 * 60 * 5
+  );
 
   items.initializeSearchIndex();
 

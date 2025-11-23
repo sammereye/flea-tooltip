@@ -5,6 +5,7 @@ import Items from "./Items";
 import IpcConstants from "./IpcConstants";
 import path from "path";
 import { isDev } from "../utils";
+import robot from "robotjs";
 
 export default class OCRProcess {
   constructor(items: Items, priceListWindow: BrowserWindow) {
@@ -62,11 +63,10 @@ export default class OCRProcess {
       const y = parseInt(coords.split(",")[1]);
       const item = this.items.search(itemName, 50);
       if (item) {
-        console.log("MEOW");
-        const mousePos = screen.getCursorScreenPoint();
-        console.log("MEOW2");
-        console.log(JSON.stringify(mousePos));
-        console.log(JSON.stringify(coords));
+        const mousePos = robot.getMousePos();
+        const electronMousePos = screen.getCursorScreenPoint();
+        // console.log(JSON.stringify(mousePos));
+        // console.log(JSON.stringify(coords));
         if (mousePos.x === x && mousePos.y === y) {
           console.log("Found", item.name);
           this.priceListWindow.webContents.send(
@@ -74,6 +74,7 @@ export default class OCRProcess {
             item
           );
           if (this.tooltipWindow) {
+            console.log(JSON.stringify(item));
             this.tooltipWindow.webContents.send(
               IpcConstants.NewTooltipItem,
               item
@@ -81,11 +82,11 @@ export default class OCRProcess {
 
             console.log(
               "Setting tooltip position to ",
-              mousePos.x + 13,
-              mousePos.y + 13
+              electronMousePos.x + 13,
+              electronMousePos.y + 13
             );
             setTimeout(() => {
-              this.tooltipWindow.setPosition(mousePos.x + 13, mousePos.y + 13);
+              this.tooltipWindow.setPosition(electronMousePos.x + 13, electronMousePos.y + 13);
               this.tooltipWindow.setBounds({ width: 500, height: 150 });
             }, 10);
           }
