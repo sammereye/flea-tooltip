@@ -6,6 +6,7 @@ export default class Item {
   prices: ItemPrices;
   slots: number;
   tasks: ItemTask[];
+  icon: string;
 }
 
 type ItemPrices = {
@@ -20,7 +21,7 @@ type TraderPrice = {
   price: number
 }
 
-type ItemTask = {
+export type ItemTask = {
   task: string,
   count: number
 }
@@ -40,5 +41,6 @@ export class ClientItem extends Item {
     this.tasks = item.tasks;
     this.count = 1;
     this.mostRecentlyAddedItem = false;
+    this.icon = item.icon;
   }
 }

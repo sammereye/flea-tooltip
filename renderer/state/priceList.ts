@@ -71,21 +71,21 @@ export function enableTooltips() {
 }
 
 // @ts-expect-error
-window.electron.receive(IpcConstants.NewTooltipItem, (event: any, newItem: Item | null) => {
+window.electron.receive(IpcConstants.NewTooltipItem, (_: never, newItem: Item | null) => {
   incomingItem(newItem);
 });
 
 // @ts-expect-error
-window.electron.receive(IpcConstants.DeleteItem, (event: any, newItem: Item | null) => {
+window.electron.receive(IpcConstants.DeleteItem, (event: never, newItem: Item | null) => {
   removeItemFromPriceList(newItem);
 });
 
 // @ts-expect-error
-window.electron.receive(IpcConstants.AddToItemCount, (event: any) => {
+window.electron.receive(IpcConstants.AddToItemCount, () => {
   addToItemCount();
 });
 
 // @ts-expect-error
-window.electron.receive(IpcConstants.TooltipsReady, (event: any) => {
+window.electron.receive(IpcConstants.TooltipsReady, () => {
   TOOLTIPS_READY.set(true);
 });

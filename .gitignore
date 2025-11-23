@@ -125,6 +125,5 @@ lib/setalwaysontop/x64
 *.lib
 
 # Executables
-*.exe
 *.out
 *.app
