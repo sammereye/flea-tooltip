@@ -4227,7 +4227,7 @@ export function Tooltip() {
       item.prices.avgDay > item.prices.latest
         ? item.prices.latest
         : item.prices.avgDay;
-    const fleaPricePerSlot = Math.ceil(item.prices.avgDay / item.slots);
+    const fleaPricePerSlot = Math.ceil(fleaPriceToUse / item.slots);
     const traderPricePerSlot = Math.ceil(item.prices.trader.price / item.slots);
 
     return (

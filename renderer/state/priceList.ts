@@ -47,7 +47,6 @@ export function addToItemCount() {
     if (mostRecentlyAddedItemFilter.length > 0) {
       const mostRecentlyAddedItem = mostRecentlyAddedItemFilter[0];
       mostRecentlyAddedItem.count += 1;
-      console.log(mostRecentlyAddedItem.count);
       [
         ...prevValue.filter((x) => x.id !== mostRecentlyAddedItem.id),
         mostRecentlyAddedItem,

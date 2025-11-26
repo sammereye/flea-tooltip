@@ -20,7 +20,9 @@ export default class OCRProcess {
 
   initialize(): void {
     const onNewData = this.onNewData;
-    isDev() ? console.log("Initializing OCR process") : log.info("Initializing OCR process");
+    isDev()
+      ? console.log("Initializing OCR process")
+      : log.info("Initializing OCR process");
     // const ocrProcess = ;
     const ocrProcess = isDev()
       ? spawn(path.join(app.getAppPath(), "/lib/ocr/ocr_cpp.exe"))
@@ -35,16 +37,18 @@ export default class OCRProcess {
     });
 
     ocrProcess.on("close", function (code) {
-      isDev() ? console.log("closing code: " + code) : log.info("closing code: " + code);
+      isDev()
+        ? console.log("closing code: " + code)
+        : log.info("closing code: " + code);
     });
 
-    isDev() ? console.log("Successfully initialized OCR process") : log.info("Successfully initialized OCR process");
+    isDev()
+      ? console.log("Successfully initialized OCR process")
+      : log.info("Successfully initialized OCR process");
     return;
   }
 
   onNewData(data: any): void {
-    // console.log('Items: ', this.items);
-    // console.log('TooltipWindow: ', this.tooltipWindow);
     const text = new String(data);
     const incomingData = text.toString().trim();
     if (incomingData === "MOUSEMOVE") {
@@ -67,28 +71,32 @@ export default class OCRProcess {
       if (item) {
         const mousePos = robot.getMousePos();
         const electronMousePos = screen.getCursorScreenPoint();
-        // console.log(JSON.stringify(mousePos));
-        // console.log(JSON.stringify(coords));
+
+        if (
+          mousePos.x < 2560 / 2 + 10 &&
+          mousePos.y < 1440 / 2 + 10 &&
+          mousePos.x > 2560 / 2 - 10 &&
+          mousePos.y > 1440 / 2 - 10
+        ) {
+          return;
+        }
+
         if (mousePos.x === x && mousePos.y === y) {
-          console.log("Found", item.name);
           this.priceListWindow.webContents.send(
             IpcConstants.NewTooltipItem,
             item
           );
           if (this.tooltipWindow) {
-            console.log(JSON.stringify(item));
             this.tooltipWindow.webContents.send(
               IpcConstants.NewTooltipItem,
               item
             );
 
-            console.log(
-              "Setting tooltip position to ",
-              electronMousePos.x + 13,
-              electronMousePos.y + 13
-            );
             setTimeout(() => {
-              this.tooltipWindow.setPosition(electronMousePos.x + 13, electronMousePos.y + 13);
+              this.tooltipWindow.setPosition(
+                electronMousePos.x + 13,
+                electronMousePos.y + 13
+              );
               this.tooltipWindow.setBounds({ width: 500, height: 200 });
             }, 10);
           }

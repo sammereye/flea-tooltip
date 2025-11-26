@@ -14,7 +14,7 @@ import OCRProcess from "../models/OCRProcess";
 import AlwaysOnTopProcess from "../models/AlwaysOnTopProcess";
 import path from "path";
 import IpcConstants from "../models/IpcConstants";
-import log from 'electron-log/main';
+import log from "electron-log/main";
 import { isDev } from "../utils";
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
@@ -25,17 +25,17 @@ try {
   // plugin that tells the Electron app where to look for the Webpack-bundled app code (depending on
   // whether you're running in development or production).
   let items: Items;
-  
+
   log.initialize();
-  
+
   // Handle creating/removing shortcuts on Windows when installing/uninstalling.
   if (require("electron-squirrel-startup")) {
     app.quit();
   }
-  
+
   // Better performance when a menu is not needed
   // Menu.setApplicationMenu(null);
-  
+
   app.on("ready", async () => {
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
       callback({
@@ -47,23 +47,27 @@ try {
         },
       });
     });
-  
-    log.info("OPENING MAIN WINDOW", MAIN_WINDOW_WEBPACK_ENTRY, MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY);
-    const mainWindow = openMainWindow(MAIN_WINDOW_WEBPACK_ENTRY, MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY);
+
+    log.info(
+      "OPENING MAIN WINDOW",
+      MAIN_WINDOW_WEBPACK_ENTRY,
+      MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY
+    );
+    const mainWindow = openMainWindow(
+      MAIN_WINDOW_WEBPACK_ENTRY,
+      MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY
+    );
     (await mainWindow).on("close", () => {
       app.quit();
-    })
+    });
     items = new Items();
     await items.fetchItems();
-  
-    setInterval(
-      () => {
-        console.log("Refetching updated data");
-        items.fetchItems();
-      },
-      1000 * 60 * 5
-    );
-  
+
+    setInterval(() => {
+      console.log("Refetching updated data");
+      items.fetchItems();
+    }, 1000 * 60 * 5);
+
     items.initializeSearchIndex();
 
     const ocr = new OCRProcess(items, BrowserWindow.getAllWindows()[0]);
@@ -71,7 +75,7 @@ try {
 
     // FOR SOME REASON THESE BREAK THE APP WHEN PACKAGED |||||||||||||||||||||||||||||| WARNING
     // const tray = new Tray(path.join(app.getAppPath(), "/favicon.ico"));
-  
+
     // const contextMenu = Menu.buildFromTemplate([
     //   {
     //     role: "about",
@@ -88,35 +92,35 @@ try {
     //   },
     // ]);
 
-  
     // tray.setToolTip("Tarkov Price Checker");
     // tray.setContextMenu(contextMenu);
-  
+
     globalShortcut.register("F2", () => {
-      BrowserWindow.getAllWindows()[0].webContents.send(IpcConstants.DeleteItem);
+      BrowserWindow.getAllWindows()[0].webContents.send(
+        IpcConstants.DeleteItem
+      );
     });
-    
+
     globalShortcut.register("F3", () => {
-      console.log("Adding quantity to most recently added item");
+      BrowserWindow.getAllWindows()[0].webContents.send(
+        IpcConstants.DeleteLastItem
+      );
+    });
+
+    globalShortcut.register("F4", () => {
       BrowserWindow.getAllWindows()[0].webContents.send(
         IpcConstants.AddToItemCount
       );
     });
-  
-    globalShortcut.register("F4", () => {
-      BrowserWindow.getAllWindows()[0].webContents.send(IpcConstants.DeleteLastItem);
-    });
-  
+
     globalShortcut.register("F12", () => {
       BrowserWindow.getAllWindows()[0].webContents.openDevTools();
     });
-  
-      log.info("MEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEOW");
+
+    log.info("MEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEOW");
     ipcMain.on(IpcConstants.EnableTooltips, async (event, ...args) => {
-      isDev() ? console.log("ON ENABLE TOOLTIPS") : log.info("ON ENABLE TOOLTIPS");
       const tooltipWindow = new TooltipWindow();
       tooltipWindow.on("ready-to-show", () => {
-        isDev() ? console.log("Tooltip window is ready to show") : log.info("Tooltip window is ready to show");
         setTimeout(() => {
           const alwaysOnTopProcess = new AlwaysOnTopProcess();
           alwaysOnTopProcess.initialize();
@@ -128,13 +132,13 @@ try {
       });
     });
   });
-  
+
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") {
       app.quit();
     }
   });
-  
+
   // MAC
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

@@ -171,7 +171,6 @@ export default class Items {
     const topResult: SearchResult = searchResults[0];
     const item = this.getItemById(topResult.id);
 
-    console.log(`${searchQuery} : ${topResult.score}`);
     if (
       topResult.score <= lowestAcceptableScore &&
       searchQuery.trim().toLowerCase() !== item.name.trim().toLowerCase()

@@ -82,7 +82,10 @@ function PriceListGridRow({
   lastItem: boolean;
 }) {
   return (
-    <>
+    <div className="flex items-center">
+      <div>
+        <img src={item.icon} className="inline h-9 w-9 mr-2 align-middle" />
+      </div>
       <div
         className={classNames(
           item.mostRecentlyAddedItem ? "bg-blue-700 text-white" : "",
@@ -133,6 +136,6 @@ function PriceListGridRow({
           </span>
         )}
       </div>
-    </>
+    </div>
   );
 }
