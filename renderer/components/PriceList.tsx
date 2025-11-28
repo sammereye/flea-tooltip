@@ -42,10 +42,12 @@ export default function PriceList() {
             Total Loot: <span className="font-['Nunito']">₽</span>
             {numberWithCommas(totalLootValue)}
           </h2>
-          <div className="grid grid-cols-[auto_1fr] font-bold tracking-wide w-fit text-base">
+          <div className="flex flex-wrap gap-2 font-bold tracking-wide w-fit text-base">
             {priceListSorted.map((item, i) => {
               const fleaPricePerSlot = Math.ceil(
-                item.prices.avgDay / item.slots
+                (item.prices.avgDay > item.prices.latest
+                  ? item.prices.latest
+                  : item.prices.avgDay) / item.slots
               );
               const traderPricePerSlot = Math.ceil(
                 item.prices.trader.price / item.slots
@@ -83,58 +85,61 @@ function PriceListGridRow({
 }) {
   return (
     <div className="flex items-center">
+      <div className="h-12 w-12 flex items-center justify-center">
+        <img
+          src={item.icon}
+          className="inline max-w-full max-h-full object-contain object-center"
+        />
+      </div>
       <div>
-        <img src={item.icon} className="inline h-9 w-9 mr-2 align-middle" />
-      </div>
-      <div
-        className={classNames(
-          item.mostRecentlyAddedItem ? "bg-blue-700 text-white" : "",
-          lastItem ? "bg-red-700 text-white" : "",
-          lastItem && item.mostRecentlyAddedItem
-            ? "bg-purple-700 text-white"
-            : "",
-          "pl-2 font-black cursor-pointer"
-        )}
-        onClick={() => {
-          removeItemFromPriceList(item as ClientItem);
-        }}
-      >
-        <span>{item.shortName}</span>
-        {item.count > 1 && <span> x {item.count}</span>}
-        <span>: </span>
-      </div>
-      <div
-        className={classNames(
-          item.mostRecentlyAddedItem ? "bg-blue-700 text-white" : "",
-          lastItem ? "bg-red-700 text-white" : "",
-          lastItem && item.mostRecentlyAddedItem
-            ? "bg-purple-700 text-white"
-            : "",
-          "pr-2 cursor-pointer"
-        )}
-        onClick={() => {
-          removeItemFromPriceList(item as ClientItem);
-        }}
-      >
-        {item.availableOnFleaMarket ? (
-          <span>
-            <span className="mr-1"></span>
-            <span className="font-['Nunito']">₽</span>
-            {numberWithCommas(fleaPricePerSlot)}
-          </span>
-        ) : (
-          <span>
-            <span className="mr-1"></span>
-            <span className="font-['Nunito']">₽</span>
-            {numberWithCommas(traderPricePerSlot)}
-          </span>
-        )}
+        <div
+          className={classNames(
+            item.mostRecentlyAddedItem ? "bg-blue-700 text-white" : "",
+            lastItem ? "bg-red-700 text-white" : "",
+            lastItem && item.mostRecentlyAddedItem
+              ? "bg-purple-700 text-white"
+              : "",
+            "pl-2 font-black cursor-pointer"
+          )}
+          onClick={() => {
+            removeItemFromPriceList(item as ClientItem);
+          }}
+        >
+          {item.shortName}
+        </div>
+        <div
+          className={classNames(
+            item.mostRecentlyAddedItem ? "bg-blue-700 text-white" : "",
+            lastItem ? "bg-red-700 text-white" : "",
+            lastItem && item.mostRecentlyAddedItem
+              ? "bg-purple-700 text-white"
+              : "",
+            "pr-2 cursor-pointer"
+          )}
+          onClick={() => {
+            removeItemFromPriceList(item as ClientItem);
+          }}
+        >
+          {item.availableOnFleaMarket ? (
+            <span>
+              <span className="mr-1"></span>
+              <span className="font-['Nunito']">₽</span>
+              {numberWithCommas(fleaPricePerSlot)}
+            </span>
+          ) : (
+            <span>
+              <span className="mr-1"></span>
+              <span className="font-['Nunito']">₽</span>
+              {numberWithCommas(traderPricePerSlot)}
+            </span>
+          )}
 
-        {item.slots > 1 && (
-          <span>
-            <span className="mr-1"></span>x {item.slots}
-          </span>
-        )}
+          {item.slots > 1 && (
+            <span>
+              <span className="mr-1"></span>x {item.slots}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );

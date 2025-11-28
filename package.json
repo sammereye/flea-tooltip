@@ -1,13 +1,13 @@
 {
-  "name": "electron-react-ts",
-  "productName": "electron-react-ts",
+  "name": "tarkov-price-tooltip",
+  "productName": "tarkov-price-tooltip",
   "version": "1.0.0",
-  "description": "My Electron application description",
+  "description": "In-Game Tarkov Market Checker",
   "main": "./.webpack/main",
   "scripts": {
     "start": "electron-forge start",
     "package": "electron-forge package",
-    "move": "move \"./out/Tarkov Price Checker-win32-x64/resources/eng.traineddata\" \"./out/Tarkov Price Checker-win32-x64/\"",
+    "move": "powershell -Command \"Move-Item -Path './out/Tarkov Price Checker-win32-x64/resources/eng.traineddata' -Destination './out/Tarkov Price Checker-win32-x64/'\"",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "lint": "eslint --ext .ts,.tsx ."
@@ -51,13 +51,13 @@
     "@hookstate/core": "^4.0.1",
     "electron-log": "^5.4.3",
     "electron-squirrel-startup": "^1.0.0",
+    "koffi": "^2.14.1",
     "minisearch": "^6.3.0",
     "postcss-loader": "^7.3.4",
     "postcss-preset-env": "^9.3.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.20.1",
-    "request": "^2.88.2",
-    "robotjs": "^0.6.0"
+    "request": "^2.88.2"
   }
 }

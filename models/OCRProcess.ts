@@ -5,7 +5,7 @@ import Items from "./Items";
 import IpcConstants from "./IpcConstants";
 import path from "path";
 import { isDev } from "../utils";
-import robot from "robotjs";
+import koffi from "koffi";
 import log from "electron-log";
 
 export default class OCRProcess {
@@ -17,8 +17,32 @@ export default class OCRProcess {
   public tooltipWindow: TooltipWindow | null;
   protected priceListWindow: BrowserWindow;
   protected items: Items;
+  protected user32: koffi.IKoffiLib;
+  protected Point: koffi.IKoffiCType;
+
+  getMousePos(): { x: number; y: number } | null {
+    const GetCursorPos = this.user32.func(
+      "int __stdcall GetCursorPos(_Out_ POINT *pos)"
+    );
+
+    // Get and show cursor position
+    const pos = {};
+    try {
+      if (!GetCursorPos(pos)) throw new Error("Failed to get cursor position");
+      return pos as { x: number; y: number };
+    } catch (error) {
+      console.error("Error getting cursor position:", error);
+      return null;
+    }
+  }
 
   initialize(): void {
+    this.user32 = koffi.load("user32.dll");
+    this.Point = koffi.struct("POINT", {
+      x: "long",
+      y: "long",
+    });
+
     const onNewData = this.onNewData;
     isDev()
       ? console.log("Initializing OCR process")
@@ -69,7 +93,7 @@ export default class OCRProcess {
       const y = parseInt(coords.split(",")[1]);
       const item = this.items.search(itemName, 50);
       if (item) {
-        const mousePos = robot.getMousePos();
+        const mousePos = this.getMousePos();
         const electronMousePos = screen.getCursorScreenPoint();
 
         if (
@@ -97,8 +121,10 @@ export default class OCRProcess {
                 electronMousePos.x + 13,
                 electronMousePos.y + 13
               );
-              this.tooltipWindow.setBounds({ width: 500, height: 200 });
-            }, 10);
+              setTimeout(() => {
+                this.tooltipWindow.setBounds({ width: 500, height: 200 });
+              }, 10);
+            }, 5);
           }
         }
       }
