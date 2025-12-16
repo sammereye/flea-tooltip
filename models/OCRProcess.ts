@@ -106,10 +106,16 @@ export default class OCRProcess {
         }
 
         if (mousePos.x === x && mousePos.y === y) {
-          this.priceListWindow.webContents.send(
-            IpcConstants.NewTooltipItem,
-            item
-          );
+          if (
+            !incomingData.includes("||MENU") &&
+            this.priceListWindow.isVisible()
+          ) {
+            this.priceListWindow.webContents.send(
+              IpcConstants.NewTooltipItem,
+              item
+            );
+          }
+
           if (this.tooltipWindow) {
             this.tooltipWindow.webContents.send(
               IpcConstants.NewTooltipItem,

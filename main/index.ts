@@ -72,6 +72,20 @@ try {
 
     const ocr = new OCRProcess(items, BrowserWindow.getAllWindows()[0]);
     ocr.initialize();
+    console.log("OCR PROCESS INITIALIZED");
+    const tooltipWindow = new TooltipWindow();
+    console.log("TOOLTIP WINDOW CREATED");
+    tooltipWindow.on("ready-to-show", () => {
+      console.log("TOOLTIP WINDOW READY TO SHOW");
+      setTimeout(() => {
+        const alwaysOnTopProcess = new AlwaysOnTopProcess();
+        alwaysOnTopProcess.initialize();
+        ocr.tooltipWindow = tooltipWindow;
+        BrowserWindow.getAllWindows()[0].webContents.send(
+          IpcConstants.TooltipsReady
+        );
+      }, 1000);
+    });
 
     // FOR SOME REASON THESE BREAK THE APP WHEN PACKAGED |||||||||||||||||||||||||||||| WARNING
     // const tray = new Tray(path.join(app.getAppPath(), "/favicon.ico"));
@@ -95,6 +109,16 @@ try {
     // tray.setToolTip("Tarkov Price Checker");
     // tray.setContextMenu(contextMenu);
 
+    globalShortcut.register("F1", () => {
+      console.log("Toggling main window visibility");
+      console.log(BrowserWindow.getAllWindows()[0].isVisible());
+      if (BrowserWindow.getAllWindows()[0].isVisible()) {
+        BrowserWindow.getAllWindows()[0].hide();
+      } else {
+        BrowserWindow.getAllWindows()[0].show();
+      }
+    });
+
     globalShortcut.register("F2", () => {
       BrowserWindow.getAllWindows()[0].webContents.send(
         IpcConstants.DeleteItem
@@ -117,20 +141,20 @@ try {
       BrowserWindow.getAllWindows()[0].webContents.openDevTools();
     });
 
-    log.info("MEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEOW");
-    ipcMain.on(IpcConstants.EnableTooltips, async (event, ...args) => {
-      const tooltipWindow = new TooltipWindow();
-      tooltipWindow.on("ready-to-show", () => {
-        setTimeout(() => {
-          const alwaysOnTopProcess = new AlwaysOnTopProcess();
-          alwaysOnTopProcess.initialize();
-          ocr.tooltipWindow = tooltipWindow;
-          BrowserWindow.getAllWindows()[0].webContents.send(
-            IpcConstants.TooltipsReady
-          );
-        }, 1000);
-      });
-    });
+    // log.info("MEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEOW");
+    // ipcMain.on(IpcConstants.EnableTooltips, async (event, ...args) => {
+    //   const tooltipWindow = new TooltipWindow();
+    //   tooltipWindow.on("ready-to-show", () => {
+    //     setTimeout(() => {
+    //       const alwaysOnTopProcess = new AlwaysOnTopProcess();
+    //       alwaysOnTopProcess.initialize();
+    //       ocr.tooltipWindow = tooltipWindow;
+    //       BrowserWindow.getAllWindows()[0].webContents.send(
+    //         IpcConstants.TooltipsReady
+    //       );
+    //     }, 1000);
+    //   });
+    // });
   });
 
   app.on("window-all-closed", () => {

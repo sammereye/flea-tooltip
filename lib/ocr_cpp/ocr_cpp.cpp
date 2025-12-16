@@ -138,6 +138,27 @@ static bool pixelIsValid(short CURSOR_TOOLTIP_OFFSET_X, short CURSOR_TOOLTIP_OFF
     return pixelIsBorderColor(red, green, blue);
 }
 
+static bool checkSettingsPixelColor() {
+    HDC dc = NULL;
+    COLORREF color = 0;
+    short red = 0;
+    short green = 0;
+    short blue = 0;
+
+    dc = GetDC(NULL);
+    color = GetPixel(dc, 2516, 1418);
+    red = GetRValue(color);
+    green = GetGValue(color);
+    blue = GetBValue(color);
+    ReleaseDC(NULL, dc);
+
+    if (red == 153 && green == 154 && blue == 141) {
+        return true;
+    }
+
+    return false;
+}
+
 static void getLastBorderPoint(short CURSOR_TOOLTIP_OFFSET_X, short CURSOR_TOOLTIP_OFFSET_Y, short& checks, short& red, short& green, short& blue, short& offsetX, short checkRange) {
     checks++;
     while (pixelIsValid(CURSOR_TOOLTIP_OFFSET_X, CURSOR_TOOLTIP_OFFSET_Y, red, blue, green, offsetX)) {
@@ -197,7 +218,7 @@ int main()
     int horizontal = 0;
     int vertical = 0;
     GetDesktopResolution(horizontal, vertical);
-    if (horizontal == 2560 && vertical == 1440) {
+    if (horizontal == 2560 && vertical == 1420) {
         ONE_ROW_TOOLTIP_HEIGHT = ONE_ROW_TOOLTIP_HEIGHT_1440;
         TWO_ROW_TOOLTIP_HEIGHT = TWO_ROW_TOOLTIP_HEIGHT_1440;
         CURSOR_TOOLTIP_OFFSET_X = CURSOR_TOOLTIP_OFFSET_X_1440;
@@ -293,7 +314,12 @@ int main()
                     scanText = regex_replace(scanText, regex("\n"), "");
                     scanText = regex_replace(scanText, regex("@"), "0");
                     if (scanText.length() > 0) {
-                        cout << scanText << "||" << mousePos.x << "," << mousePos.y << endl;
+                        if (checkSettingsPixelColor()) {
+                            cout << scanText << "||" << mousePos.x << "," << mousePos.y << "||MENU" << endl;
+                        }
+                        else {
+                            cout << scanText << "||" << mousePos.x << "," << mousePos.y << endl;
+                        }
                         lastValidMousePos = mousePos;
                         fflush(stdout);
                         outputMouseMove = true;
@@ -305,18 +331,9 @@ int main()
                 //cout << "Width: " << width << "Height: " << height << " Initial point: " << initPoint.x << ", Final point: " << finalPoint.x << "in " << checks << " checks" << endl;
             }
         }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
-
-    /*
-    auto t2 = high_resolution_clock::now();
-
-    auto ms_int = duration_cast<milliseconds>(t2 - t1);
-
-    duration<double, milli> ms_double = t2 - t1;
-
-    cout << ms_int.count() << "ms\n";
-    cout << ms_double.count() << "ms\n";
-    */
 
     return 0;
 }

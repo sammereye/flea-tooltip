@@ -1,54 +1,54 @@
 @font-face {
-  font-family: 'Nunito';
-  src: url('./Nunito-Regular.ttf');
+  font-family: "Nunito";
+  src: url("./Nunito-Regular.ttf");
   font-weight: 400;
 }
 
 @font-face {
-  font-family: 'Nunito';
-  src: url('./Nunito-Medium.ttf');
+  font-family: "Nunito";
+  src: url("./Nunito-Medium.ttf");
   font-weight: 500;
 }
 
 @font-face {
-  font-family: 'Nunito';
-  src: url('./Nunito-SemiBold.ttf');
+  font-family: "Nunito";
+  src: url("./Nunito-SemiBold.ttf");
   font-weight: 600;
 }
 
 @font-face {
-  font-family: 'Nunito';
-  src: url('./Nunito-Bold.ttf');
+  font-family: "Nunito";
+  src: url("./Nunito-Bold.ttf");
   font-weight: 700;
 }
 
 @font-face {
-  font-family: 'Nunito';
-  src: url('./Nunito-ExtraBold.ttf');
+  font-family: "Nunito";
+  src: url("./Nunito-ExtraBold.ttf");
   font-weight: 800;
 }
 
 @font-face {
-  font-family: 'Nunito';
-  src: url('./Nunito-Black.ttf');
+  font-family: "Nunito";
+  src: url("./Nunito-Black.ttf");
   font-weight: 900;
 }
 
 @font-face {
-  font-family: 'Bender';
-  src: url('./bender.regular.otf');
+  font-family: "Bender";
+  src: url("./bender.regular.otf");
   font-weight: 400;
 }
 
 @font-face {
-  font-family: 'Bender';
-  src: url('./bender.bold.otf');
+  font-family: "Bender";
+  src: url("./bender.bold.otf");
   font-weight: 700;
 }
 
 @font-face {
-  font-family: 'Bender';
-  src: url('./bender.black.otf');
+  font-family: "Bender";
+  src: url("./bender.black.otf");
   font-weight: 900;
 }
 
