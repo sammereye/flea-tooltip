@@ -57,6 +57,7 @@ try {
       MAIN_WINDOW_WEBPACK_ENTRY,
       MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY
     );
+    (await mainWindow).setIgnoreMouseEvents(true);
     (await mainWindow).on("close", () => {
       app.quit();
     });
@@ -66,7 +67,7 @@ try {
     setInterval(() => {
       console.log("Refetching updated data");
       items.fetchItems();
-    }, 1000 * 60 * 5);
+    }, 1000 * 60 * 15);
 
     items.initializeSearchIndex();
 
@@ -74,6 +75,7 @@ try {
     ocr.initialize();
     console.log("OCR PROCESS INITIALIZED");
     const tooltipWindow = new TooltipWindow();
+    tooltipWindow.setIgnoreMouseEvents(true);
     console.log("TOOLTIP WINDOW CREATED");
     tooltipWindow.on("ready-to-show", () => {
       console.log("TOOLTIP WINDOW READY TO SHOW");

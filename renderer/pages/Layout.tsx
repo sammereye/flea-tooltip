@@ -4,7 +4,7 @@ import "../styles/index.css";
 
 export function Layout() {
   return (
-    <main className="p-4 pt-1">
+    <main className="p-2 pt-1 h-full">
       {/* <Nav /> */}
       <Outlet />
     </main>

@@ -13,8 +13,10 @@
 #include <algorithm>
 #include <regex>
 #include <string>
+#include <nlohmann/json.hpp>
 
 using namespace std;
+using json = nlohmann::json;
 
 class Image
 {
@@ -160,36 +162,119 @@ static bool checkSettingsPixelColor() {
 }
 
 static void getLastBorderPoint(short CURSOR_TOOLTIP_OFFSET_X, short CURSOR_TOOLTIP_OFFSET_Y, short& checks, short& red, short& green, short& blue, short& offsetX, short checkRange) {
-    checks++;
-    while (pixelIsValid(CURSOR_TOOLTIP_OFFSET_X, CURSOR_TOOLTIP_OFFSET_Y, red, blue, green, offsetX)) {
+    if (pixelIsValid(CURSOR_TOOLTIP_OFFSET_X, CURSOR_TOOLTIP_OFFSET_Y, red, blue, green, offsetX)) {
+        //std::cout << "Checking offsetX: " << offsetX << std::endl;
         offsetX += checkRange;
         checks++;
+
+        while (pixelIsValid(CURSOR_TOOLTIP_OFFSET_X, CURSOR_TOOLTIP_OFFSET_Y, red, blue, green, offsetX)) {
+            //std::cout << "Checking offsetX: " << offsetX << std::endl;
+            offsetX += checkRange;
+            checks++;
+        }
     }
+
     offsetX -= checkRange;
 }
 
-static char* scanForText(int x1, int y1, int width, int height) {
-    char* outText{};
-    HWND SomeWindowHandle = GetDesktopWindow();
-    HDC DC = GetDC(SomeWindowHandle);
+static std::string scanForText(tesseract::TessBaseAPI& tess, int x1, int y1, int width, int height) {
+    std::string result;
 
-    Image Img = Image(DC, x1, y1, width, height); //screenshot of 0, 0, 200, 200..
+    HWND desktop = GetDesktopWindow();
+    HDC dc = GetDC(desktop);
+    if (!dc) {
+        return result;
+    }
 
-    ReleaseDC(SomeWindowHandle, DC);
+    // Capture the image
+    Image img(dc, x1, y1, width, height);
+    ReleaseDC(desktop, dc);
 
-    unique_ptr<tesseract::TessBaseAPI> tesseract_ptr(new tesseract::TessBaseAPI());
+    tess.SetImage(img.GetPixels(), img.GetWidth(), img.GetHeight(),
+                  img.GetBytesPerPixel(), img.GetBytesPerScanLine());
 
-    tesseract_ptr->Init(NULL, "eng");
-    tesseract_ptr->SetImage(Img.GetPixels(), Img.GetWidth(), Img.GetHeight(), Img.GetBytesPerPixel(), Img.GetBytesPerScanLine()); //Fixed this line..
+    char* utf8 = tess.GetUTF8Text();
+    if (utf8) {
+        result.assign(utf8);
+    }
 
-    outText = tesseract_ptr->GetUTF8Text();
-
-    //cout << utf8_text_ptr.get() << "\n";
-    return outText;
+    return result;
 }
 
 int main()
 {
+    short ONE_ROW_TOOLTIP_HEIGHT{};
+    short TWO_ROW_TOOLTIP_HEIGHT{};
+    short CURSOR_TOOLTIP_OFFSET_X{};
+    short CURSOR_TOOLTIP_OFFSET_Y{};
+
+    WCHAR exe_path[MAX_PATH];
+    GetModuleFileNameW(NULL, exe_path, MAX_PATH);
+
+    // 2. Extract the directory path
+    std::wstring ws_exe_path(exe_path);
+    std::wstring exe_dir = ws_exe_path.substr(0, ws_exe_path.find_last_of(L"\\/"));
+
+    std::ifstream file(exe_dir + L"\\config.json");
+
+    // Check if the file opened successfully
+    if (!file.is_open()) {
+        cout << "IGNORE||NO CONFIG FILE FOUND" << endl;
+        // 2560x1440
+        const short ONE_ROW_TOOLTIP_HEIGHT_1440 = -29;
+        const short TWO_ROW_TOOLTIP_HEIGHT_1440 = -50;
+        const short CURSOR_TOOLTIP_OFFSET_X_1440 = 13;
+        const short CURSOR_TOOLTIP_OFFSET_Y_1440 = -13;
+
+        // 1920x1080
+        const short ONE_ROW_TOOLTIP_HEIGHT_1080 = -19;
+        const short TWO_ROW_TOOLTIP_HEIGHT_1080 = -35;
+        const short CURSOR_TOOLTIP_OFFSET_X_1080 = 11;
+        const short CURSOR_TOOLTIP_OFFSET_Y_1080 = -11;
+
+        int horizontal = 0;
+        int vertical = 0;
+        GetDesktopResolution(horizontal, vertical);
+        if (horizontal == 1920 && vertical == 1080) {
+            ONE_ROW_TOOLTIP_HEIGHT = ONE_ROW_TOOLTIP_HEIGHT_1080;
+            TWO_ROW_TOOLTIP_HEIGHT = TWO_ROW_TOOLTIP_HEIGHT_1080;
+            CURSOR_TOOLTIP_OFFSET_X = CURSOR_TOOLTIP_OFFSET_X_1080;
+            CURSOR_TOOLTIP_OFFSET_Y = CURSOR_TOOLTIP_OFFSET_Y_1080;
+        }
+        else
+        {
+            ONE_ROW_TOOLTIP_HEIGHT = ONE_ROW_TOOLTIP_HEIGHT_1440;
+            TWO_ROW_TOOLTIP_HEIGHT = TWO_ROW_TOOLTIP_HEIGHT_1440;
+            CURSOR_TOOLTIP_OFFSET_X = CURSOR_TOOLTIP_OFFSET_X_1440;
+            CURSOR_TOOLTIP_OFFSET_Y = CURSOR_TOOLTIP_OFFSET_Y_1440;
+        }
+    }
+    else 
+    {
+        cout << "IGNORE||CONFIG FILE FOUND" << endl;
+        // Parse the JSON data directly from the input stream
+        json data = json::parse(file);
+
+        // Close the file (optional, as the ifstream destructor does this automatically)
+        file.close();
+
+        ONE_ROW_TOOLTIP_HEIGHT = data["singleRowHeight"];
+        TWO_ROW_TOOLTIP_HEIGHT = data["doubleRowHeight"];
+        CURSOR_TOOLTIP_OFFSET_X = data["offsetX"];
+        CURSOR_TOOLTIP_OFFSET_Y = data["offsetY"];
+    }
+
+    cout << "IGNORE||ONE_ROW_TOOLTIP_HEIGHT=" << ONE_ROW_TOOLTIP_HEIGHT << endl;
+    cout << "IGNORE||TWO_ROW_TOOLTIP_HEIGHT=" << TWO_ROW_TOOLTIP_HEIGHT << endl;
+    cout << "IGNORE||CURSOR_TOOLTIP_OFFSET_X=" << CURSOR_TOOLTIP_OFFSET_X << endl;
+    cout << "IGNORE||CURSOR_TOOLTIP_OFFSET_Y=" << CURSOR_TOOLTIP_OFFSET_Y << endl;
+
+    tesseract::TessBaseAPI tess;
+    if (tess.Init(NULL, "eng") != 0) {
+        // Init failed
+        tess.End();
+	    exit(1);
+    }
     /*
     using chrono::high_resolution_clock;
     using chrono::duration_cast;
@@ -198,43 +283,6 @@ int main()
 
     auto t1 = high_resolution_clock::now();
     */
-    // 2560x1440
-    const short ONE_ROW_TOOLTIP_HEIGHT_1440 = -29;
-    const short TWO_ROW_TOOLTIP_HEIGHT_1440 = -50;
-    const short CURSOR_TOOLTIP_OFFSET_X_1440 = 13;
-    const short CURSOR_TOOLTIP_OFFSET_Y_1440 = -13;
-
-    // 1920x1080
-    const short ONE_ROW_TOOLTIP_HEIGHT_1080 = -19;
-    const short TWO_ROW_TOOLTIP_HEIGHT_1080 = -35;
-    const short CURSOR_TOOLTIP_OFFSET_X_1080 = 11;
-    const short CURSOR_TOOLTIP_OFFSET_Y_1080 = -11;
-
-    short ONE_ROW_TOOLTIP_HEIGHT{};
-    short TWO_ROW_TOOLTIP_HEIGHT{};
-    short CURSOR_TOOLTIP_OFFSET_X{};
-    short CURSOR_TOOLTIP_OFFSET_Y{};
-
-    int horizontal = 0;
-    int vertical = 0;
-    GetDesktopResolution(horizontal, vertical);
-    if (horizontal == 2560 && vertical == 1420) {
-        ONE_ROW_TOOLTIP_HEIGHT = ONE_ROW_TOOLTIP_HEIGHT_1440;
-        TWO_ROW_TOOLTIP_HEIGHT = TWO_ROW_TOOLTIP_HEIGHT_1440;
-        CURSOR_TOOLTIP_OFFSET_X = CURSOR_TOOLTIP_OFFSET_X_1440;
-        CURSOR_TOOLTIP_OFFSET_Y = CURSOR_TOOLTIP_OFFSET_Y_1440;
-    }
-    else if (horizontal == 1920 && vertical == 1080) {
-        ONE_ROW_TOOLTIP_HEIGHT = ONE_ROW_TOOLTIP_HEIGHT_1080;
-        TWO_ROW_TOOLTIP_HEIGHT = TWO_ROW_TOOLTIP_HEIGHT_1080;
-        CURSOR_TOOLTIP_OFFSET_X = CURSOR_TOOLTIP_OFFSET_X_1080;
-        CURSOR_TOOLTIP_OFFSET_Y = CURSOR_TOOLTIP_OFFSET_Y_1080;
-    }
-    else {
-        cout << "RESOLUTION_ERROR";
-        fflush(stdout);
-        return 0;
-    }
 
     string scanText{};
     short checkRange = 50;
@@ -251,9 +299,10 @@ int main()
     POINT initPoint{};
     POINT finalPoint{};
     bool outputMouseMove = true;
-    short checkpoints[6] = { 50, 25, 12, 6, 3, 1 };
+    //short checkpoints[6] = { 50, 25, 12, 6, 3, 1 };
+
+    short checkpoints[3] = { 50, 15, 5 };
     while (true) {
-        //this_thread::sleep_for(chrono::milliseconds(100));
         if (GetCursorPos(&mousePos)) {
             if (outputMouseMove && (lastValidMousePos.x != mousePos.x || lastValidMousePos.y != mousePos.y)) {
                 cout << "MOUSEMOVE" << endl;
@@ -276,7 +325,7 @@ int main()
                 // 50
                 checkRange = 50;
                 offsetX = checkRange;
-                for (short i = 0; i < 6; i++) {
+                for (short i = 0; i < std::size(checkpoints); i++) {
                     checkRange = checkpoints[i];
                     offsetX += checkRange;
                     getLastBorderPoint(CURSOR_TOOLTIP_OFFSET_X, CURSOR_TOOLTIP_OFFSET_Y, checks, red, green, blue, offsetX, checkRange);
@@ -299,27 +348,27 @@ int main()
                 initPoint.y += 1;
                 finalPoint.y += 1;
 
-                if (horizontal == 2560) {
+                /*if (horizontal == 2560) {
                     initPoint.x += 1;
                     initPoint.y += 1;
-                }
+                }*/
 
                 width = finalPoint.x - initPoint.x;
                 height = finalPoint.y - initPoint.y;
 
                 if (width > 10 && height > 10) {
                     //cout << initPoint.x << ',' << initPoint.y << '|' << finalPoint.x << ',' << finalPoint.y << endl;
-                    scanText = scanForText(initPoint.x, initPoint.y, width, height);
+                    scanText = scanForText(tess, initPoint.x, initPoint.y, width, height);
                     scanText = regex_replace(scanText, regex("\r\n"), "");
                     scanText = regex_replace(scanText, regex("\n"), "");
                     scanText = regex_replace(scanText, regex("@"), "0");
-                    if (scanText.length() > 0) {
-                        if (checkSettingsPixelColor()) {
+                    if (scanText.length() > 3) {
+                        /*if (checkSettingsPixelColor()) {
                             cout << scanText << "||" << mousePos.x << "," << mousePos.y << "||MENU" << endl;
                         }
-                        else {
+                        else {*/
                             cout << scanText << "||" << mousePos.x << "," << mousePos.y << endl;
-                        }
+                        //}
                         lastValidMousePos = mousePos;
                         fflush(stdout);
                         outputMouseMove = true;
@@ -332,8 +381,9 @@ int main()
             }
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(25));
     }
 
+	tess.End();
     return 0;
 }

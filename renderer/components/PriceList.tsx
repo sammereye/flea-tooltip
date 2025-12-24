@@ -28,32 +28,7 @@ export default function PriceList() {
     }, 0);
 
     return (
-      <div className="tracking-wide">
-        <div className="grid grid-cols-2">
-          <div>
-            <span className="uppercase text-xs font-bold">Total</span>
-            <h2 className="flex justify-center flex-col bg-white text-stone-900 px-2 rounded h-7 w-40 font-['Bender']">
-              <div className="flex items-end gap-0.5">
-                <span className="font-['Nunito'] text-sm mb-1 font-black">
-                  ₽
-                </span>
-                <span className="text-xl font-black tracking-wider">
-                  <NumberFlow value={totalLootValue} />
-                </span>
-              </div>
-            </h2>
-          </div>
-          {priceListSorted.length > 0 ? (
-            <div>
-              <span className="uppercase text-xs font-bold">Last Item</span>
-              <h2 className="flex justify-center flex-col bg-white text-stone-900 px-2 rounded h-7 w-40 font-['Bender'] overflow-hidden">
-                <div className="flex items-end gap-0.5 text-lg font-black tracking-tight whitespace-nowrap">
-                  {priceListSorted[priceListSorted.length - 1].shortName}
-                </div>
-              </h2>
-            </div>
-          ) : null}
-        </div>
+      <div className="tracking-wide flex flex-col h-full">
         {/* <div className="flex flex-col gap-1.5 font-bold tracking-wide w-fit text-base mt-4">
           {priceListSorted.map((item, i) => {
             return (
@@ -65,16 +40,45 @@ export default function PriceList() {
             );
           })}
         </div> */}
-        <div className="grid grid-cols-5 font-medium tracking-wide grid-rows-5 text-base mt-2 w-full grid-flow-col">
+        <div className="grid grid-cols-5 grid-rows-5 font-medium tracking-wide text-base mt-1 w-full grid-flow-col grow max-h-[150px]">
+          {priceListSorted.length > 21 ? (
+            <div className="flex items-center max-w-full max-h-full overflow-hidden tracking-[-0.1px] odd:bg-white/10">
+              <div className="relative flex items-center gap-1 w-full h-full">
+                <div>
+                  <div className="px-2 font-bold cursor-pointer text-[11px] -mt-[3px] whitespace-nowrap">
+                    {priceListSorted.length - 21} items abv
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
           {priceListSorted.map((item, i) => {
-            return (
-              <PriceListGridRow
-                key={item.id}
-                item={item}
-                lastItem={priceListSorted.length - 1 === i}
-              />
-            );
+            if (
+              priceListSorted.length <= 21 ||
+              (priceListSorted.length > 21 && i > priceListSorted.length - 21)
+            ) {
+              return (
+                <PriceListGridRow
+                  key={item.id}
+                  item={item}
+                  lastItem={priceListSorted.length - 1 === i}
+                />
+              );
+            }
           })}
+          <div className="flex flex-col h-full justify-center col-start-4 row-start-4 col-span-3 row-span-2 pl-2">
+            <span className="uppercase text-xs font-bold">Total</span>
+            <h2 className="flex justify-center flex-col bg-white text-stone-900 px-2 rounded h-7 w-full font-['Bender']">
+              <div className="flex items-end gap-0.5">
+                <span className="font-['Nunito'] text-sm mb-1 font-black">
+                  ₽
+                </span>
+                <span className="text-xl font-black tracking-wider">
+                  <NumberFlow value={totalLootValue} />
+                </span>
+              </div>
+            </h2>
+          </div>
         </div>
       </div>
     );
@@ -91,26 +95,26 @@ function PriceListGridRow({
   lastItem: boolean;
 }) {
   return (
-    <div className="flex items-center max-w-full max-h-full overflow-hidden tracking-[-0.1px] border-b-[2px] border-r-[2px] border-stone-700">
+    <div className="flex items-center max-w-full max-h-full overflow-hidden tracking-[-0.1px] odd:bg-white/10">
       {/* <div className="h-9 w-9 flex items-center justify-center mr-1">
         <img
           src={item.icon}
           className="inline max-w-full max-h-full object-contain object-center"
         />
       </div> */}
-      <div
-        className={classNames(
-          item.mostRecentlyAddedItem ? "bg-blue-700/50 text-white" : "",
-          lastItem ? "bg-red-700/50 text-white" : "",
-          lastItem && item.mostRecentlyAddedItem
-            ? "bg-purple-700 text-white"
-            : "",
-          "flex items-center gap-1 w-full"
-        )}
-      >
+      <div className="relative flex items-center gap-1 w-full h-full">
         <div>
           <div
-            className="px-2 font-bold cursor-pointer text-[11px] -mt-[3px] whitespace-nowrap"
+            className={classNames(
+              "px-2 font-bold cursor-pointer text-[11px] -mt-[3px] whitespace-nowrap",
+              lastItem && item.mostRecentlyAddedItem
+                ? "text-purple-500"
+                : item.mostRecentlyAddedItem
+                ? "text-green-500"
+                : lastItem
+                ? "text-red-500"
+                : ""
+            )}
             onClick={() => {
               removeItemFromPriceList(item as ClientItem);
             }}

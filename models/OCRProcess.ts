@@ -87,11 +87,43 @@ export default class OCRProcess {
     } else if (incomingData.includes("||")) {
       // eslint-disable-next-line no-control-regex
       const incomingDataCleanedUp = incomingData.replace(/[^\x00-\x7F]/g, "");
-      const itemName = incomingDataCleanedUp.split("||")[0];
+      let itemName = incomingDataCleanedUp.split("||")[0];
       const coords = incomingDataCleanedUp.split("||")[1];
       const x = parseInt(coords.split(",")[0]);
       const y = parseInt(coords.split(",")[1]);
-      const item = this.items.search(itemName, 50);
+
+      if (itemName.includes("WD-40 (1")) {
+        itemName = "WD-40 (100ml)";
+      } else if (itemName.includes("WD-40 (4")) {
+        itemName = "WD-40 (400ml)";
+      }
+
+      if (itemName.toLowerCase().includes("kektape")) {
+        itemName = "kektape";
+      }
+
+      if (itemName.toLowerCase().includes("pc cpi")) {
+        itemName = "pc cpu";
+      }
+
+      const allowedLowerScoreItems = [
+        "magnet",
+        "arena",
+        "cult",
+        "poste",
+        "kektape",
+        "military",
+        "matche",
+        "sewing",
+      ];
+
+      const item = this.items.search(
+        itemName,
+        allowedLowerScoreItems.filter((i) => itemName.toLowerCase().includes(i))
+          .length > 0
+          ? 12
+          : 50
+      );
       if (item) {
         const mousePos = this.getMousePos();
         const electronMousePos = screen.getCursorScreenPoint();
@@ -128,7 +160,7 @@ export default class OCRProcess {
                 electronMousePos.y + 13
               );
               setTimeout(() => {
-                this.tooltipWindow.setBounds({ width: 500, height: 200 });
+                this.tooltipWindow.setBounds({ width: 500, height: 500 });
               }, 10);
             }, 5);
           }

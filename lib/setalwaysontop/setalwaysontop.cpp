@@ -39,13 +39,13 @@ int main()
 
             // 2. Define the fixed dimensions
             const int WINDOW_WIDTH = 450;
-            const int WINDOW_HEIGHT = 300;
+            const int WINDOW_HEIGHT = 186;
 
             // 3. Calculate the new X position for the top-right corner
             // New X = Screen Width - Fixed Window Width
             int newX = screenWidth - WINDOW_WIDTH;
             // New Y is 0 for the top edge
-            int newY = screenHeight - WINDOW_HEIGHT - 43;
+            int newY = screenHeight - WINDOW_HEIGHT - 45;
 
             // 4. Call SetWindowPos to move, resize, and set Z-order
             SetWindowPos(
