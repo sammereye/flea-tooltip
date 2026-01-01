@@ -118,21 +118,36 @@ int main()
     LONG endOffsetY = 0L;
     LONG singleRowHeight = 0L;
     LONG doubleRowHeight = 0L;
+    std::string userInput = "";
 
     std::cout << "HOVER OVER ITEM WITH ONE ROW" << std::endl;
-    std::this_thread::sleep_for(std::chrono::seconds(10));
+    fflush(stdout);
+    do {
+        std::getline(std::cin, userInput);
+		if (userInput == "EXIT") {
+            return 0;
+        }
+    } while (userInput != "NEXT");
+    userInput = "";
 
     LoopThroughPixels(&endOffsetX, &endOffsetY, &singleRowHeight);
 
     if (endOffsetX != 0 && endOffsetY != 0) {
-        std::cout << "Offset X: " << endOffsetX << ", Offset Y: " << endOffsetY << ", Single Row Height: " << singleRowHeight << std::endl;
+        //std::cout << "Offset X: " << endOffsetX << ", Offset Y: " << endOffsetY << ", Single Row Height: " << singleRowHeight << std::endl;
         
-        std::cout << "HOVER OVER ITEM WITH TWO ROWS NOW" << std::endl;
-        std::this_thread::sleep_for(std::chrono::seconds(12));
+        std::cout << "HOVER OVER ITEM WITH TWO ROWS" << std::endl;
+        fflush(stdout);
+        do {
+            std::getline(std::cin, userInput);
+            if (userInput == "EXIT") {
+                return 0;
+            }
+        } while (userInput != "NEXT");
+        userInput = "";
         LoopThroughPixels(&endOffsetX, &endOffsetY, &doubleRowHeight);
-        std::cout << "Offset X: " << endOffsetX << ", Offset Y: " << endOffsetY << ", Double Row Height: " << doubleRowHeight << std::endl;
+        std::cout << "RESULT||" << endOffsetX << "||" << endOffsetY << "||" << singleRowHeight << "||" << doubleRowHeight << std::endl;
         
-        json jsonOutput = {
+        /*json jsonOutput = {
           {"singleRowHeight", -1*singleRowHeight},
           {"doubleRowHeight", -1*doubleRowHeight},
           {"offsetX", endOffsetX},
@@ -140,8 +155,8 @@ int main()
         };
 
         std::ofstream o("config.json");
-        o << std::setw(4) << jsonOutput << std::endl;
+        o << std::setw(4) << jsonOutput << std::endl;*/
     }
-
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     return 0;
 }

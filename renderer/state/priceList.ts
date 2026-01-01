@@ -7,6 +7,9 @@ import { getItemsPricePerSlot } from "../../utils";
 
 export const PRICE_LIST = hookstate<ClientItem[]>([]);
 export const TOOLTIPS_READY = hookstate<boolean | "loading">(false);
+export const NO_SCANNING_CONFIG_FOUND = hookstate<boolean>(false);
+export const IN_SCREEN_CONFIG = hookstate<boolean>(false);
+export const SCREEN_CONFIG_STEP = hookstate<0 | 1 | 2 | 3 | 4 | 5 | 6>(0);
 
 export function incomingItem(item: Item | null) {
   if (item) {
@@ -115,6 +118,54 @@ window.electron.receive(IpcConstants.DeleteLastItem, (event: never) => {
 
 window.electron.receive(IpcConstants.AddToItemCount, () => {
   addToItemCount();
+});
+
+window.electron.receive(IpcConstants.StartScreenConfigure, () => {
+  IN_SCREEN_CONFIG.set(true);
+  SCREEN_CONFIG_STEP.set(1);
+});
+
+window.electron.receive(IpcConstants.EndScreenConfigure, () => {
+  IN_SCREEN_CONFIG.set(false);
+  SCREEN_CONFIG_STEP.set(0);
+});
+
+window.electron.receive(IpcConstants.ScreenConfigureStarted, () => {
+  if (IN_SCREEN_CONFIG.get()) {
+    SCREEN_CONFIG_STEP.set(2);
+  }
+});
+
+window.electron.receive(IpcConstants.ScreenConfigureScanningSingleRow, () => {
+  if (IN_SCREEN_CONFIG.get()) {
+    SCREEN_CONFIG_STEP.set(3);
+  }
+});
+
+window.electron.receive(IpcConstants.ScreenConfigureScannedSingleRow, () => {
+  if (IN_SCREEN_CONFIG.get()) {
+    SCREEN_CONFIG_STEP.set(4);
+  }
+});
+
+window.electron.receive(IpcConstants.ScreenConfigureScanningDoubleRow, () => {
+  if (IN_SCREEN_CONFIG.get()) {
+    SCREEN_CONFIG_STEP.set(5);
+  }
+});
+
+window.electron.receive(IpcConstants.ScreenConfigureScanComplete, () => {
+  if (IN_SCREEN_CONFIG.get()) {
+    SCREEN_CONFIG_STEP.set(6);
+  }
+});
+
+window.electron.receive(IpcConstants.ScreenConfigureNeeded, () => {
+  NO_SCANNING_CONFIG_FOUND.set(true);
+});
+
+window.electron.receive(IpcConstants.DisableScreenConfigureNeeded, () => {
+  NO_SCANNING_CONFIG_FOUND.set(false);
 });
 
 window.electron.receive(IpcConstants.TooltipsReady, () => {

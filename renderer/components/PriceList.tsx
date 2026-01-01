@@ -1,4 +1,10 @@
-import { PRICE_LIST, removeItemFromPriceList } from "../state/priceList";
+import {
+  IN_SCREEN_CONFIG,
+  NO_SCANNING_CONFIG_FOUND,
+  PRICE_LIST,
+  removeItemFromPriceList,
+  SCREEN_CONFIG_STEP,
+} from "../state/priceList";
 import { ImmutableObject, useHookstate } from "@hookstate/core";
 import {
   classNames,
@@ -11,9 +17,142 @@ import NumberFlow, { useCanAnimate } from "@number-flow/react";
 
 export default function PriceList() {
   const priceListHook = useHookstate(PRICE_LIST);
+  const inScreenConfigHook = useHookstate(IN_SCREEN_CONFIG);
+  const screenConfigStepHook = useHookstate(SCREEN_CONFIG_STEP);
+  const noScanningConfigFoundHook = useHookstate(NO_SCANNING_CONFIG_FOUND);
   const priceList = priceListHook.get();
+  const inScreenConfig = inScreenConfigHook.get();
+  const screenConfigStep: 0 | 1 | 2 | 3 | 4 | 5 | 6 =
+    screenConfigStepHook.get();
+  const noScanningConfigFound = noScanningConfigFoundHook.get();
 
   useCanAnimate({ respectMotionPreference: false });
+
+  if (noScanningConfigFound) {
+    return (
+      <div className="flex flex-col h-full justify-center items-center text-center">
+        <h2 className="text-base font-bold mb-2">
+          Initial Screen Calibration Needed
+        </h2>
+        <p className="text-sm">
+          Please press F6 to start the screen scanning configuration process.
+          This is a simple 30 second process to calibrate the OCR for your
+          screen.
+        </p>
+      </div>
+    );
+  }
+
+  if (inScreenConfig) {
+    if (screenConfigStep === 1) {
+      return (
+        <div className="flex flex-col h-full justify-center items-center text-center">
+          <h2 className="text-base font-bold mb-2">
+            Screen Configuration Initializing
+          </h2>
+          <div>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 512 512"
+              className="size-6 animate-spin"
+            >
+              <path opacity=".4" fill="currentColor" d="" />
+              <path
+                fill="currentColor"
+                d="M457 372c11.5 6.6 26.3 2.7 31.8-9.3 14.9-32.5 23.2-68.6 23.2-106.7 0-133.3-101.9-242.8-232-254.9-13.2-1.2-24 9.6-24 22.9s10.8 23.9 24 25.4c103.6 11.9 184 99.9 184 206.6 0 29.3-6.1 57.3-17 82.6-5.3 12.2-1.5 26.8 10 33.5z"
+              />
+            </svg>
+          </div>
+        </div>
+      );
+    } else if (screenConfigStep === 2) {
+      return (
+        <div className="flex flex-col h-full justify-center items-center text-center">
+          <h2 className="text-base font-bold mb-2">
+            Screen Configuration Started
+          </h2>
+          <p className="text-sm">
+            Please hover over an item with a singular row of text such as an
+            AI-2 medkit or your secure container until the tooltip appears.
+            Then, without moving your mouse, press F6 and wait until the next
+            step.
+          </p>
+        </div>
+      );
+    } else if (screenConfigStep === 3) {
+      return (
+        <div className="flex flex-col h-full justify-center items-center text-center">
+          <h2 className="text-base font-bold mb-2">
+            Scanning Single Row Dimensions
+          </h2>
+          <p className="text-sm text-red-500 font-bold mb-2">
+            DON'T MOVE YOUR MOUSE
+          </p>
+          <div>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 512 512"
+              className="size-6 animate-spin"
+            >
+              <path opacity=".4" fill="currentColor" d="" />
+              <path
+                fill="currentColor"
+                d="M457 372c11.5 6.6 26.3 2.7 31.8-9.3 14.9-32.5 23.2-68.6 23.2-106.7 0-133.3-101.9-242.8-232-254.9-13.2-1.2-24 9.6-24 22.9s10.8 23.9 24 25.4c103.6 11.9 184 99.9 184 206.6 0 29.3-6.1 57.3-17 82.6-5.3 12.2-1.5 26.8 10 33.5z"
+              />
+            </svg>
+          </div>
+        </div>
+      );
+    } else if (screenConfigStep === 4) {
+      return (
+        <div className="flex flex-col h-full justify-center items-center text-center">
+          <h2 className="text-base font-bold mb-2">Single Row Scanned</h2>
+          <p className="text-sm">
+            Now, please hover over an item with two rows of text such as a
+            VPO-215 Gornostay until the tooltip appears. Then, without moving
+            your mouse, press F6 and wait until the next step.
+          </p>
+        </div>
+      );
+    } else if (screenConfigStep === 5) {
+      return (
+        <div className="flex flex-col h-full justify-center items-center text-center">
+          <h2 className="text-base font-bold mb-2">
+            Scanning Double Row Dimensions
+          </h2>
+          <p className="text-sm text-red-500 font-bold mb-2">
+            DON'T MOVE YOUR MOUSE
+          </p>
+          <div>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 512 512"
+              className="size-6 animate-spin"
+            >
+              <path opacity=".4" fill="currentColor" d="" />
+              <path
+                fill="currentColor"
+                d="M457 372c11.5 6.6 26.3 2.7 31.8-9.3 14.9-32.5 23.2-68.6 23.2-106.7 0-133.3-101.9-242.8-232-254.9-13.2-1.2-24 9.6-24 22.9s10.8 23.9 24 25.4c103.6 11.9 184 99.9 184 206.6 0 29.3-6.1 57.3-17 82.6-5.3 12.2-1.5 26.8 10 33.5z"
+              />
+            </svg>
+          </div>
+        </div>
+      );
+    } else if (screenConfigStep === 6) {
+      return (
+        <div className="flex flex-col h-full justify-center items-center text-center">
+          <h2 className="text-base font-bold mb-2">Configuration Complete</h2>
+          <p className="text-sm text-red-500 font-bold mb-2">
+            PLEASE RESTART THIS APPLICATION TO SAVE CHANGES
+          </p>
+          <p className="text-sm">
+            If you are still running into issues, please join our Discord for
+            assistance.
+          </p>
+        </div>
+      );
+    }
+  }
 
   if (priceList) {
     const priceListSorted = [...priceList].sort(

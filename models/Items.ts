@@ -3,6 +3,9 @@ import MiniSearch, { SearchResult } from "minisearch";
 import request from "request";
 import TarkovMarketItem from "./TarkovMarketItem";
 import { Form } from "react-router-dom/dist";
+import fs from "fs";
+import path from "path";
+import { app } from "electron";
 
 export default class Items {
   items: Item[];
@@ -13,132 +16,149 @@ export default class Items {
   }
 
   async fetchItems(): Promise<void> {
-    // const itemsFromApi = await this.getItemsPromise();
-    // console.log(itemsFromApi.length + " items fetched from API");
-    // // const data = await response.json();
-    // this.items = itemsFromApi;
-
-    // OLD STUFF DOWN BELOW
-    const res = await fetch("https://api.tarkov-market.app/api/v1/items/all", {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "x-api-key": "EqQlalpnRwZswmhD",
-      },
-    });
-
-    if (!(res.status == 200 || res.status == 204)) {
-      throw new Error("Failed to fetch items");
+    let tarkovMarketApiKey = "";
+    if (fs.existsSync(path.join(app.getAppPath(), "/tarkovMarketApiKey.txt"))) {
+      tarkovMarketApiKey = fs.readFileSync(
+        path.join(app.getAppPath(), "/tarkovMarketApiKey.txt"),
+        "utf-8"
+      );
     }
 
-    const data: TarkovMarketItem[] = await res.json();
-    const formattedData: Item[] = data.map((item: TarkovMarketItem) => {
-      return {
-        id: item.uid,
-        name: item.name,
-        shortName: item.shortName,
-        availableOnFleaMarket: !item.bannedOnFlea,
-        slots: item.slots,
-        prices: {
-          latest: item.price,
-          avgDay: item.avg24hPrice,
-          avgWeek: item.avg7daysPrice,
-          trader: {
-            name: item.traderName,
-            price: item.traderPriceRub,
-          },
-        },
-        tasks: [] as ItemTask[],
-        icon: item.icon,
-      };
-    });
+    try {
+      if (tarkovMarketApiKey.trim() !== "") {
+        console.log("Using Tarkov Market API key for item fetch");
 
-    this.items = formattedData;
+        const res = await fetch(
+          "https://api.tarkov-market.app/api/v1/items/all",
+          {
+            method: "GET",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+              "x-api-key": tarkovMarketApiKey,
+            },
+          }
+        );
+
+        if (!(res.status == 200 || res.status == 204)) {
+          throw new Error("Failed to fetch items");
+        }
+
+        const data: TarkovMarketItem[] = await res.json();
+        const formattedData: Item[] = data.map((item: TarkovMarketItem) => {
+          return {
+            id: item.uid,
+            name: item.name,
+            shortName: item.shortName,
+            availableOnFleaMarket: !item.bannedOnFlea,
+            slots: item.slots,
+            prices: {
+              latest: item.price,
+              avgDay: item.avg24hPrice,
+              avgWeek: item.avg7daysPrice,
+              trader: {
+                name: item.traderName,
+                price: item.traderPriceRub,
+              },
+            },
+            tasks: [] as ItemTask[],
+            icon: item.icon,
+          };
+        });
+
+        this.items = formattedData;
+      }
+    } catch {
+      console.error("Failed to fetch items from Tarkov Market API");
+    }
+
+    if (this.items.length === 0) {
+      console.log("Fetching items from Tarkov.dev API");
+      const itemsFromApi = await this.getItemsPromise();
+      console.log(itemsFromApi.length + " items fetched from API");
+      // const data = await response.json();
+      this.items = itemsFromApi;
+    }
   }
 
-  // getItemsPromise(): Promise<Item[]> {
-  //   const options = {
-  //     method: "POST",
-  //     url: "https://api.tarkov.dev/graphql",
-  //     headers: {
-  //       "sec-ch-ua":
-  //         '" Not;A Brand";v="99", "Google Chrome";v="97", "Chromium";v="97"',
-  //       accept: "application/json",
-  //       dnt: "1",
-  //       "content-type": "application/json",
-  //       "sec-ch-ua-mobile": "?0",
-  //       "user-agent":
-  //         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.71 Safari/537.36",
-  //       "sec-ch-ua-platform": '"Windows"',
-  //       "sec-fetch-site": "same-origin",
-  //       "sec-fetch-mode": "cors",
-  //       "sec-fetch-dest": "empty",
-  //       "accept-language": "en-US,en;q=0.9",
-  //     },
-  //     body: JSON.stringify({
-  //       query:
-  //         "{\n            itemsByType(type:any){\n                id\n                name\n                shortName\n                basePrice\n                normalizedName\n                types\n                width\n                height\n                avg24hPrice\n                wikiLink\n                changeLast48h\n                low24hPrice\n                high24hPrice\n                lastLowPrice\n            historicalPrices { price priceMin timestamp }\n                gridImageLink\n                iconLink\n                traderPrices {\n                    price\n                    trader {\n                        name\n                    }\n                }\n                sellFor {\n                    source\n                    price\n                    requirements {\n                        type\n                        value\n                    }\n                    currency\n                }\n                buyFor {\n                    source\n                    price\n                    currency\n                    requirements {\n                        type\n                        value\n                    }\n                }\n                containsItems {\n                    count\n                    item {\n                        id\n                    }\n                }\n            }\n        }",
-  //     }),
-  //   };
+  getItemsPromise(): Promise<Item[]> {
+    const options = {
+      method: "POST",
+      url: "https://api.tarkov.dev/graphql",
+      headers: {
+        "sec-ch-ua":
+          '" Not;A Brand";v="99", "Google Chrome";v="97", "Chromium";v="97"',
+        accept: "application/json",
+        dnt: "1",
+        "content-type": "application/json",
+        "sec-ch-ua-mobile": "?0",
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.71 Safari/537.36",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "accept-language": "en-US,en;q=0.9",
+      },
+      body: JSON.stringify({
+        query:
+          "{\n            itemsByType(type:any){\n                id\n                name\n                shortName\n                basePrice\n                normalizedName\n                types\n                width\n                height\n                avg24hPrice\n                wikiLink\n                changeLast48h\n                low24hPrice\n                high24hPrice\n                lastLowPrice\n            historicalPrices { price priceMin timestamp }\n                gridImageLink\n                iconLink\n                traderPrices {\n                    price\n                    trader {\n                        name\n                    }\n                }\n                sellFor {\n                    source\n                    price\n                    requirements {\n                        type\n                        value\n                    }\n                    currency\n                }\n                buyFor {\n                    source\n                    price\n                    currency\n                    requirements {\n                        type\n                        value\n                    }\n                }\n                containsItems {\n                    count\n                    item {\n                        id\n                    }\n                }\n            }\n        }",
+      }),
+    };
 
-  //   return new Promise((resolve, reject) => {
-  //     request(options, function (error, response) {
-  //       if (error) {
-  //         reject(error);
-  //       } else {
-  //         const itemData = JSON.parse(response.body).data.itemsByType;
-
-  //         const formattedData: Item[] = itemData.map((item: any) => {
-  //           return {
-  //             id: item.id,
-  //             name: item.name,
-  //             shortName: item.shortName,
-  //             availableOnFleaMarket:
-  //               item?.sellFor?.filter(
-  //                 (x: { source: string }) => x.source === "fleaMarket"
-  //               )?.length > 0,
-  //             prices: {
-  //               // latest:
-  //               //   item.sellFor && Array.isArray(item.sellFor)
-  //               //     ? item.sellFor.filter(
-  //               //         (x: { source: string }) => x.source === "fleaMarket"
-  //               //       ).length > 0
-  //               //       ? item.sellFor.filter(
-  //               //           (x: { source: string; price: number }) =>
-  //               //             x.source === "fleaMarket"
-  //               //         )[0].price
-  //               //       : 0
-  //               //     : 0,
-  //               latest: item.avg24hPrice,
-  //               avgDay: item.avg24hPrice,
-  //               trader:
-  //                 item.sellFor && Array.isArray(item.sellFor)
-  //                   ? item.sellFor
-  //                       .filter(
-  //                         (x: { source: string }) => x.source !== "fleaMarket"
-  //                       )
-  //                       .map((x: { price: number; source: string }) => {
-  //                         return {
-  //                           name: x.source,
-  //                           price: x.price,
-  //                         };
-  //                       })
-  //                   : [],
-  //             },
-  //             slots: item.width * item.height,
-  //             tasks: [] as ItemTask[],
-  //             icon: item.iconLink,
-  //           };
-  //         });
-  //         console.log(formattedData.length + " items loaded");
-  //         console.log(JSON.stringify(itemData[0]));
-  //         console.log(JSON.stringify(formattedData[0]));
-  //         resolve(formattedData);
-  //       }
-  //     });
-  //   });
-  // }
+    return new Promise((resolve, reject) => {
+      request(options, function (error, response) {
+        if (error) {
+          reject(error);
+        } else {
+          const itemData = JSON.parse(response.body).data.itemsByType;
+          const formattedData: Item[] = itemData.map((item: any) => {
+            return {
+              id: item.id,
+              name: item.name,
+              shortName: item.shortName,
+              availableOnFleaMarket:
+                item?.sellFor?.filter(
+                  (x: { source: string }) => x.source === "fleaMarket"
+                )?.length > 0,
+              prices: {
+                latest: item.avg24hPrice,
+                avgDay: item.avg24hPrice,
+                trader:
+                  item.sellFor && Array.isArray(item.sellFor)
+                    ? item.sellFor
+                        .filter(
+                          (x: { source: string }) => x.source !== "fleaMarket"
+                        )
+                        .map((x: { price: number; source: string }) => {
+                          return {
+                            name: x.source,
+                            price: x.price,
+                          };
+                        })
+                        .sort(
+                          (a: { price: number }, b: { price: number }) =>
+                            b.price - a.price
+                        )[0]
+                    : {
+                        name: "N/A",
+                        price: 0,
+                      },
+              },
+              slots: item.width * item.height,
+              tasks: [] as ItemTask[],
+              icon: item.iconLink,
+            };
+          });
+          console.log(formattedData[0]);
+          console.log(formattedData.length + " items loaded");
+          // console.log(JSON.stringify(itemData[0]));
+          // console.log(JSON.stringify(formattedData[0]));
+          resolve(formattedData);
+        }
+      });
+    });
+  }
 
   initializeSearchIndex(): void {
     if (!this.itemsAreLoaded()) {

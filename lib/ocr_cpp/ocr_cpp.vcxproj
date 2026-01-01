@@ -135,7 +135,6 @@
     <ClCompile Include="ocr_cpp.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="config.json" />
     <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

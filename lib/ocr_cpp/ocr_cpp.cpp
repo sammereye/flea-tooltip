@@ -215,39 +215,12 @@ int main()
     std::wstring ws_exe_path(exe_path);
     std::wstring exe_dir = ws_exe_path.substr(0, ws_exe_path.find_last_of(L"\\/"));
 
-    std::ifstream file(exe_dir + L"\\config.json");
+    std::ifstream file(exe_dir + L"\\scanningConfig.json");
 
     // Check if the file opened successfully
     if (!file.is_open()) {
         cout << "IGNORE||NO CONFIG FILE FOUND" << endl;
-        // 2560x1440
-        const short ONE_ROW_TOOLTIP_HEIGHT_1440 = -29;
-        const short TWO_ROW_TOOLTIP_HEIGHT_1440 = -50;
-        const short CURSOR_TOOLTIP_OFFSET_X_1440 = 13;
-        const short CURSOR_TOOLTIP_OFFSET_Y_1440 = -13;
-
-        // 1920x1080
-        const short ONE_ROW_TOOLTIP_HEIGHT_1080 = -19;
-        const short TWO_ROW_TOOLTIP_HEIGHT_1080 = -35;
-        const short CURSOR_TOOLTIP_OFFSET_X_1080 = 11;
-        const short CURSOR_TOOLTIP_OFFSET_Y_1080 = -11;
-
-        int horizontal = 0;
-        int vertical = 0;
-        GetDesktopResolution(horizontal, vertical);
-        if (horizontal == 1920 && vertical == 1080) {
-            ONE_ROW_TOOLTIP_HEIGHT = ONE_ROW_TOOLTIP_HEIGHT_1080;
-            TWO_ROW_TOOLTIP_HEIGHT = TWO_ROW_TOOLTIP_HEIGHT_1080;
-            CURSOR_TOOLTIP_OFFSET_X = CURSOR_TOOLTIP_OFFSET_X_1080;
-            CURSOR_TOOLTIP_OFFSET_Y = CURSOR_TOOLTIP_OFFSET_Y_1080;
-        }
-        else
-        {
-            ONE_ROW_TOOLTIP_HEIGHT = ONE_ROW_TOOLTIP_HEIGHT_1440;
-            TWO_ROW_TOOLTIP_HEIGHT = TWO_ROW_TOOLTIP_HEIGHT_1440;
-            CURSOR_TOOLTIP_OFFSET_X = CURSOR_TOOLTIP_OFFSET_X_1440;
-            CURSOR_TOOLTIP_OFFSET_Y = CURSOR_TOOLTIP_OFFSET_Y_1440;
-        }
+        return 0;
     }
     else 
     {

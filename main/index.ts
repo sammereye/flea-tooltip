@@ -16,6 +16,8 @@ import path from "path";
 import IpcConstants from "../models/IpcConstants";
 import log from "electron-log/main";
 import { isDev } from "../utils";
+import { ChildProcessWithoutNullStreams, spawn } from "child_process";
+import fs from "fs";
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -25,6 +27,8 @@ try {
   // plugin that tells the Electron app where to look for the Webpack-bundled app code (depending on
   // whether you're running in development or production).
   let items: Items;
+  let screenConfigureStep: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 = 0;
+  let screenConfigureProcess: ChildProcessWithoutNullStreams | null = null;
 
   log.initialize();
 
@@ -137,6 +141,155 @@ try {
       BrowserWindow.getAllWindows()[0].webContents.send(
         IpcConstants.AddToItemCount
       );
+    });
+
+    globalShortcut.register("F6", () => {
+      console.log("On step ", screenConfigureStep);
+      if (!BrowserWindow.getAllWindows()[0].isVisible()) {
+        BrowserWindow.getAllWindows()[0].show();
+      }
+
+      if (screenConfigureStep === 0) {
+        const startTime = Date.now();
+        console.log("Starting screen configure");
+        BrowserWindow.getAllWindows()[0].webContents.send(
+          IpcConstants.StartScreenConfigure
+        );
+        BrowserWindow.getAllWindows()[0].webContents.send(
+          IpcConstants.DisableScreenConfigureNeeded
+        );
+        screenConfigureStep = 1;
+        screenConfigureProcess = isDev()
+          ? spawn(
+              path.join(app.getAppPath(), "/lib/ocr/configure_screen.exe")
+              // {
+              //   detached: true,
+              //   shell: true,
+              // }
+            )
+          : spawn(
+              path.join(process.resourcesPath, "/ocr/configure_screen.exe")
+            );
+
+        screenConfigureProcess.stdout.setEncoding("utf-8");
+        screenConfigureProcess.stdout.on("data", function (data) {
+          console.log("Screen configure stderr data:", data.toString());
+          isDev()
+            ? console.log("stderr: " + data)
+            : log.error("stderr: " + data);
+
+          if (
+            data.toString().includes("Searching") &&
+            screenConfigureStep === 3
+          ) {
+            screenConfigureStep = 4;
+            BrowserWindow.getAllWindows()[0].webContents.send(
+              IpcConstants.ScreenConfigureScanningSingleRow
+            );
+          }
+
+          if (
+            data.toString().includes("HOVER OVER ITEM WITH TWO ROWS") &&
+            screenConfigureStep === 4
+          ) {
+            screenConfigureStep = 5;
+            BrowserWindow.getAllWindows()[0].webContents.send(
+              IpcConstants.ScreenConfigureScannedSingleRow
+            );
+          }
+
+          if (
+            data.toString().includes("Searching") &&
+            screenConfigureStep === 6
+          ) {
+            screenConfigureStep = 7;
+            BrowserWindow.getAllWindows()[0].webContents.send(
+              IpcConstants.ScreenConfigureScanningDoubleRow
+            );
+          }
+
+          if (
+            data.toString().includes("RESULT||") &&
+            screenConfigureStep === 7
+          ) {
+            screenConfigureStep = 8;
+            BrowserWindow.getAllWindows()[0].webContents.send(
+              IpcConstants.ScreenConfigureScanComplete
+            );
+
+            const configData = data
+              .toString()
+              .replace("RESULT||", "")
+              .split("||");
+            const offsetX = configData[0];
+            const offsetY = configData[1];
+            const singleRowHeight = configData[2];
+            const doubleRowHeight = configData[3].replace("\r\n", "");
+            const formattedConfigData = {
+              offsetX: parseInt(offsetX),
+              offsetY: parseInt(offsetY),
+              singleRowHeight: parseInt(singleRowHeight) * -1,
+              doubleRowHeight: parseInt(doubleRowHeight) * -1,
+            };
+
+            fs.writeFileSync(
+              isDev()
+                ? path.join(app.getAppPath(), "/lib/ocr/scanningConfig.json")
+                : path.join(process.resourcesPath, "/ocr/scanningConfig.json"),
+              JSON.stringify(formattedConfigData)
+            );
+          }
+        });
+
+        screenConfigureProcess.on("close", function (code) {
+          console.log("Screen configure process closed with code:", code);
+          if (screenConfigureStep !== 8) {
+            BrowserWindow.getAllWindows()[0].webContents.send(
+              IpcConstants.EndScreenConfigure
+            );
+          }
+          screenConfigureStep = 0;
+          screenConfigureProcess = null;
+        });
+
+        if (typeof screenConfigureProcess.pid !== "number") {
+          console.error("Error: Failed to spawn subprocess. PID is undefined.");
+          BrowserWindow.getAllWindows()[0].webContents.send(
+            IpcConstants.ScreenConfigureFailed
+          );
+          // Throw an error or handle the failure
+        } else {
+          console.log(
+            `Spawned subprocess correctly with PID: ${screenConfigureProcess.pid}`
+          );
+
+          const timeToWait = 1000 - (Date.now() - startTime);
+
+          setTimeout(
+            () => {
+              console.log("Screen configure step 1 complete");
+              screenConfigureStep = 2;
+              BrowserWindow.getAllWindows()[0].webContents.send(
+                IpcConstants.ScreenConfigureStarted
+              );
+            },
+            timeToWait > 0 ? timeToWait : 0
+          );
+        }
+      }
+
+      if (screenConfigureStep === 2 && screenConfigureProcess) {
+        console.log("Advancing to step 3, searching for single row dimensions");
+        screenConfigureStep = 3;
+        screenConfigureProcess.stdin.write("NEXT\n");
+      }
+
+      if (screenConfigureStep === 5 && screenConfigureProcess) {
+        console.log("Advancing to step 6, searching for double row dimensions");
+        screenConfigureStep = 6;
+        screenConfigureProcess.stdin.write("NEXT\n");
+        screenConfigureProcess.stdin.end();
+      }
     });
 
     globalShortcut.register("F12", () => {

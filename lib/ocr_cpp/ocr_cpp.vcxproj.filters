@@ -21,8 +21,5 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
-    <None Include="config.json">
-      <Filter>Source Files</Filter>
-    </None>
   </ItemGroup>
 </Project>
