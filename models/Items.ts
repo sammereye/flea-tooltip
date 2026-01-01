@@ -6,6 +6,7 @@ import { Form } from "react-router-dom/dist";
 import fs from "fs";
 import path from "path";
 import { app } from "electron";
+import { isDev } from "../utils";
 
 export default class Items {
   items: Item[];
@@ -17,9 +18,17 @@ export default class Items {
 
   async fetchItems(): Promise<void> {
     let tarkovMarketApiKey = "";
-    if (fs.existsSync(path.join(app.getAppPath(), "/tarkovMarketApiKey.txt"))) {
+    if (
+      fs.existsSync(
+        isDev()
+          ? path.join(app.getAppPath(), "/tarkovMarketApiKey.txt")
+          : path.join(process.resourcesPath, "/../tarkovMarketApiKey.txt")
+      )
+    ) {
       tarkovMarketApiKey = fs.readFileSync(
-        path.join(app.getAppPath(), "/tarkovMarketApiKey.txt"),
+        isDev()
+          ? path.join(app.getAppPath(), "/tarkovMarketApiKey.txt")
+          : path.join(process.resourcesPath, "/../tarkovMarketApiKey.txt"),
         "utf-8"
       );
     }
