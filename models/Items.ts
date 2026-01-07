@@ -83,10 +83,16 @@ export default class Items {
 
     if (this.items.length === 0) {
       console.log("Fetching items from Tarkov.dev API");
-      const itemsFromApi = await this.getItemsPromise();
-      console.log(itemsFromApi.length + " items fetched from API");
-      // const data = await response.json();
-      this.items = itemsFromApi;
+      this.getItemsPromise()
+        .then((itemsFromApi) => {
+          console.log(itemsFromApi.length + " items fetched from API");
+          // const data = await response.json();
+          this.items = itemsFromApi;
+        })
+        .catch((error) => {
+          console.error("Failed to fetch items from Tarkov.dev API:", error);
+          throw new Error("Failed to fetch items from API");
+        });
     }
   }
 

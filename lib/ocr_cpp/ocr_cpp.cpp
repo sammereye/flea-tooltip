@@ -21,342 +21,319 @@ using json = nlohmann::json;
 class Image
 {
 private:
-    vector<uint8_t> Pixels;
-    uint32_t width, height;
-    uint16_t BitsPerPixel;
+	vector<uint8_t> Pixels;
+	uint32_t width, height;
+	uint16_t BitsPerPixel;
 
-    void Flip(void* In, void* Out, int width, int height, unsigned int Bpp);
+	void Flip(void* In, void* Out, int width, int height, unsigned int Bpp);
 
 public:
-    explicit Image(HDC DC, int X, int Y, int Width, int Height);
+	explicit Image(HDC DC, int X, int Y, int Width, int Height);
 
-    inline uint16_t GetBitsPerPixel() { return this->BitsPerPixel; }
-    inline uint16_t GetBytesPerPixel() { return this->BitsPerPixel / 8; }
-    inline uint16_t GetBytesPerScanLine() { return (this->BitsPerPixel / 8) * this->width; }
-    inline int GetWidth() const { return this->width; }
-    inline int GetHeight() const { return this->height; }
-    inline const uint8_t* GetPixels() { return this->Pixels.data(); }
+	inline uint16_t GetBitsPerPixel() { return this->BitsPerPixel; }
+	inline uint16_t GetBytesPerPixel() { return this->BitsPerPixel / 8; }
+	inline uint16_t GetBytesPerScanLine() { return (this->BitsPerPixel / 8) * this->width; }
+	inline int GetWidth() const { return this->width; }
+	inline int GetHeight() const { return this->height; }
+	inline const uint8_t* GetPixels() { return this->Pixels.data(); }
 };
 
 void Image::Flip(void* In, void* Out, int width, int height, unsigned int Bpp)
 {
-    unsigned long Chunk = (Bpp > 24 ? width * 4 : width * 3 + width % 4);
-    unsigned char* Destination = static_cast<unsigned char*>(Out);
-    unsigned char* Source = static_cast<unsigned char*>(In) + Chunk * (height - 1);
+	unsigned long Chunk = (Bpp > 24 ? width * 4 : width * 3 + width % 4);
+	unsigned char* Destination = static_cast<unsigned char*>(Out);
+	unsigned char* Source = static_cast<unsigned char*>(In) + Chunk * (height - 1);
 
-    while (Source != In)
-    {
-        memcpy(Destination, Source, Chunk);
-        Destination += Chunk;
-        Source -= Chunk;
-    }
-}
-
-static void GetDesktopResolution(int& horizontal, int& vertical)
-{
-    RECT desktop;
-    // Get a handle to the desktop window
-    const HWND hDesktop = GetDesktopWindow();
-    // Get the size of screen to the variable desktop
-    GetWindowRect(hDesktop, &desktop);
-    // The top left corner will have coordinates (0,0)
-    // and the bottom right corner will have coordinates
-    // (horizontal, vertical)
-    horizontal = desktop.right;
-    vertical = desktop.bottom;
+	while (Source != In)
+	{
+		memcpy(Destination, Source, Chunk);
+		Destination += Chunk;
+		Source -= Chunk;
+	}
 }
 
 Image::Image(HDC DC, int X, int Y, int Width, int Height) : Pixels(), width(Width), height(Height), BitsPerPixel(32)
 {
-    BITMAP Bmp = { 0 };
-    HBITMAP hBmp = reinterpret_cast<HBITMAP>(GetCurrentObject(DC, OBJ_BITMAP));
+	BITMAP Bmp = { 0 };
+	HBITMAP hBmp = reinterpret_cast<HBITMAP>(GetCurrentObject(DC, OBJ_BITMAP));
 
-    if (GetObject(hBmp, sizeof(BITMAP), &Bmp) == 0)
-        throw runtime_error("BITMAP DC NOT FOUND.");
+	if (GetObject(hBmp, sizeof(BITMAP), &Bmp) == 0)
+		throw runtime_error("BITMAP DC NOT FOUND.");
 
-    RECT area = { X, Y, X + Width, Y + Height };
-    HWND Window = WindowFromDC(DC);
-    GetClientRect(Window, &area);
+	RECT area = { X, Y, X + Width, Y + Height };
+	HWND Window = WindowFromDC(DC);
+	GetClientRect(Window, &area);
 
-    HDC MemDC = GetDC(nullptr);
-    HDC SDC = CreateCompatibleDC(MemDC);
-    HBITMAP hSBmp = CreateCompatibleBitmap(MemDC, width, height);
-    DeleteObject(SelectObject(SDC, hSBmp));
+	HDC MemDC = GetDC(nullptr);
+	HDC SDC = CreateCompatibleDC(MemDC);
+	HBITMAP hSBmp = CreateCompatibleBitmap(MemDC, width, height);
+	DeleteObject(SelectObject(SDC, hSBmp));
 
-    BitBlt(SDC, 0, 0, width, height, DC, X, Y, SRCCOPY);
-    unsigned int data_size = ((width * BitsPerPixel + 31) / 32) * 4 * height;
-    vector<uint8_t> Data(data_size);
-    this->Pixels.resize(data_size);
+	BitBlt(SDC, 0, 0, width, height, DC, X, Y, SRCCOPY);
+	unsigned int data_size = ((width * BitsPerPixel + 31) / 32) * 4 * height;
+	vector<uint8_t> Data(data_size);
+	this->Pixels.resize(data_size);
 
-    BITMAPINFO Info = { sizeof(BITMAPINFOHEADER), static_cast<long>(width), static_cast<long>(height), 1, BitsPerPixel, BI_RGB, data_size, 0, 0, 0, 0 };
-    GetDIBits(SDC, hSBmp, 0, height, &Data[0], &Info, DIB_RGB_COLORS);
-    this->Flip(&Data[0], &Pixels[0], width, height, BitsPerPixel);
+	BITMAPINFO Info = { sizeof(BITMAPINFOHEADER), static_cast<long>(width), static_cast<long>(height), 1, BitsPerPixel, BI_RGB, data_size, 0, 0, 0, 0 };
+	GetDIBits(SDC, hSBmp, 0, height, &Data[0], &Info, DIB_RGB_COLORS);
+	this->Flip(&Data[0], &Pixels[0], width, height, BitsPerPixel);
 
-    DeleteDC(SDC);
-    DeleteObject(hSBmp);
-    ReleaseDC(nullptr, MemDC);
+	DeleteDC(SDC);
+	DeleteObject(hSBmp);
+	ReleaseDC(nullptr, MemDC);
 }
 
 static bool pixelIsBorderColor(short& red, short& green, short& blue) {
-    if (red == 82 && green == 89 && blue == 90) {
-        return true;
-    }
-    else if (red == 0 && green == 0 && blue == 0) {
-        return true;
-    }
-    else if (red == 11 && green == 12 && blue == 12) {
-        return true;
-    }
-    else if (red == 97 && green == 99 && blue == 96) {
-        return true;
-    }
-    else if (red == 83 && green == 90 && blue == 91) {
-        return true;
-    }
+	if (red == 82 && green == 89 && blue == 90) {
+		return true;
+	}
+	/*else if (red == 0 && green == 0 && blue == 0) {
+		return true;
+	}
+	else if (red == 11 && green == 12 && blue == 12) {
+		return true;
+	}*/
+	/*else if (red == 97 && green == 99 && blue == 96) {
+		return true;
+	}
+	else if (red == 83 && green == 90 && blue == 91) {
+		return true;
+	}*/
 
-    return false;
+	return false;
 }
 
-static bool pixelIsValid(short CURSOR_TOOLTIP_OFFSET_X, short CURSOR_TOOLTIP_OFFSET_Y, short& red, short& green, short& blue, short offsetX = 0, short offsetY = 0) {
-    HDC dc = NULL;
-    COLORREF color = 0;
-    POINT p;
-    LONG x = 0L;
-    LONG y = 0L;
+static bool pixelIsValid(short startingX, short startingY, short& red, short& green, short& blue, short offsetX = 0, short offsetY = 0) {
+	HDC dc = NULL;
+	COLORREF color = 0;
+	POINT p;
+	LONG x = 0L;
+	LONG y = 0L;
 
-    if (GetCursorPos(&p)) {
-        dc = GetDC(NULL);
-        if (p.y + CURSOR_TOOLTIP_OFFSET_Y > 0) {
-            x = p.x + CURSOR_TOOLTIP_OFFSET_X + offsetX;
-            y = p.y + CURSOR_TOOLTIP_OFFSET_Y + offsetY;
-            color = GetPixel(dc, x, y);
-            red = GetRValue(color);
-            green = GetGValue(color);
-            blue = GetBValue(color);
-        }
-        ReleaseDC(NULL, dc);
-    }
+	dc = GetDC(NULL);
+	x = startingX + offsetX;
+	y = startingY + offsetY;
+	color = GetPixel(dc, x, y);
+	red = GetRValue(color);
+	green = GetGValue(color);
+	blue = GetBValue(color);
+	ReleaseDC(NULL, dc);
 
-    return pixelIsBorderColor(red, green, blue);
+	//cout << "Color at" << x << "," << y << " is " << red << ", " << green << ", " << blue << endl;
+
+	return pixelIsBorderColor(red, green, blue);
 }
 
-static bool checkSettingsPixelColor() {
-    HDC dc = NULL;
-    COLORREF color = 0;
-    short red = 0;
-    short green = 0;
-    short blue = 0;
+static void getBottomRightBorderPoint(short startingX, short startingY, short& red, short& green, short& blue, short& offsetX, short checkRange) {
+	offsetX += checkRange;
 
-    dc = GetDC(NULL);
-    color = GetPixel(dc, 2516, 1418);
-    red = GetRValue(color);
-    green = GetGValue(color);
-    blue = GetBValue(color);
-    ReleaseDC(NULL, dc);
+	while (pixelIsValid(startingX, startingY, red, blue, green, offsetX)) {
+		offsetX += checkRange;
+	}
 
-    if (red == 153 && green == 154 && blue == 141) {
-        return true;
-    }
-
-    return false;
+	offsetX -= checkRange;
 }
 
-static void getLastBorderPoint(short CURSOR_TOOLTIP_OFFSET_X, short CURSOR_TOOLTIP_OFFSET_Y, short& checks, short& red, short& green, short& blue, short& offsetX, short checkRange) {
-    if (pixelIsValid(CURSOR_TOOLTIP_OFFSET_X, CURSOR_TOOLTIP_OFFSET_Y, red, blue, green, offsetX)) {
-        //std::cout << "Checking offsetX: " << offsetX << std::endl;
-        offsetX += checkRange;
-        checks++;
+static void getTopLeftBorderPoint(short startingX, short startingY, short& red, short& green, short& blue, short& offsetY, short checkRange) {
+	offsetY += checkRange;
 
-        while (pixelIsValid(CURSOR_TOOLTIP_OFFSET_X, CURSOR_TOOLTIP_OFFSET_Y, red, blue, green, offsetX)) {
-            //std::cout << "Checking offsetX: " << offsetX << std::endl;
-            offsetX += checkRange;
-            checks++;
-        }
-    }
+	while (pixelIsValid(startingX, startingY, red, blue, green, 0, offsetY)) {
+		offsetY += checkRange;
+	}
 
-    offsetX -= checkRange;
+	offsetY -= checkRange;
 }
 
 static std::string scanForText(tesseract::TessBaseAPI& tess, int x1, int y1, int width, int height) {
-    std::string result;
+	std::string result;
 
-    HWND desktop = GetDesktopWindow();
-    HDC dc = GetDC(desktop);
-    if (!dc) {
-        return result;
-    }
+	HWND desktop = GetDesktopWindow();
+	HDC dc = GetDC(desktop);
+	if (!dc) {
+		return result;
+	}
 
-    // Capture the image
-    Image img(dc, x1, y1, width, height);
-    ReleaseDC(desktop, dc);
+	// Capture the image
+	Image img(dc, x1, y1, width, height);
+	ReleaseDC(desktop, dc);
 
-    tess.SetImage(img.GetPixels(), img.GetWidth(), img.GetHeight(),
-                  img.GetBytesPerPixel(), img.GetBytesPerScanLine());
+	tess.SetImage(img.GetPixels(), img.GetWidth(), img.GetHeight(),
+		img.GetBytesPerPixel(), img.GetBytesPerScanLine());
 
-    char* utf8 = tess.GetUTF8Text();
-    if (utf8) {
-        result.assign(utf8);
-    }
+	char* utf8 = tess.GetUTF8Text();
+	if (utf8) {
+		result.assign(utf8);
+	}
 
-    return result;
+	return result;
+}
+
+static void rtrim(std::string& s) {
+	// Define the characters to trim (common whitespaces)
+	const std::string whitespaces = " \t\n\r\f\v";
+
+	// Find the position of the last non-whitespace character
+	size_t last_non_space = s.find_last_not_of(whitespaces);
+
+	// If a non-whitespace character is found, resize the string to end just after it
+	if (last_non_space != std::string::npos) {
+		s.erase(last_non_space + 1);
+	}
+	else {
+		// If the string contains only whitespace (or is empty), clear it
+		s.clear();
+	}
 }
 
 int main()
 {
-    short ONE_ROW_TOOLTIP_HEIGHT{};
-    short TWO_ROW_TOOLTIP_HEIGHT{};
-    short CURSOR_TOOLTIP_OFFSET_X{};
-    short CURSOR_TOOLTIP_OFFSET_Y{};
+	short CURSOR_TOOLTIP_OFFSET_X{};
+	short CURSOR_TOOLTIP_OFFSET_Y{};
 
-    WCHAR exe_path[MAX_PATH];
-    GetModuleFileNameW(NULL, exe_path, MAX_PATH);
+	WCHAR exe_path[MAX_PATH];
+	GetModuleFileNameW(NULL, exe_path, MAX_PATH);
 
-    // 2. Extract the directory path
-    std::wstring ws_exe_path(exe_path);
-    std::wstring exe_dir = ws_exe_path.substr(0, ws_exe_path.find_last_of(L"\\/"));
+	// 2. Extract the directory path
+	std::wstring ws_exe_path(exe_path);
+	std::wstring exe_dir = ws_exe_path.substr(0, ws_exe_path.find_last_of(L"\\/"));
 
-    std::ifstream file(exe_dir + L"\\scanningConfig.json");
+	std::ifstream file(exe_dir + L"\\scanningConfig.json");
 
-    // Check if the file opened successfully
-    if (!file.is_open()) {
-        cout << "IGNORE||NO CONFIG FILE FOUND" << endl;
-        return 0;
-    }
-    else 
-    {
-        cout << "IGNORE||CONFIG FILE FOUND" << endl;
-        // Parse the JSON data directly from the input stream
-        json data = json::parse(file);
+	// Check if the file opened successfully
+	if (!file.is_open()) {
+		cout << "IGNORE||NO CONFIG FILE FOUND" << endl;
+		CURSOR_TOOLTIP_OFFSET_X = 14;
+		CURSOR_TOOLTIP_OFFSET_Y = -14;
+		//return 0;
+	}
+	else
+	{
+		cout << "IGNORE||CONFIG FILE FOUND" << endl;
+		// Parse the JSON data directly from the input stream
+		json data = json::parse(file);
 
-        // Close the file (optional, as the ifstream destructor does this automatically)
-        file.close();
+		// Close the file (optional, as the ifstream destructor does this automatically)
+		file.close();
 
-        ONE_ROW_TOOLTIP_HEIGHT = data["singleRowHeight"];
-        TWO_ROW_TOOLTIP_HEIGHT = data["doubleRowHeight"];
-        CURSOR_TOOLTIP_OFFSET_X = data["offsetX"];
-        CURSOR_TOOLTIP_OFFSET_Y = data["offsetY"];
-    }
+		CURSOR_TOOLTIP_OFFSET_X = data["offsetX"];
+		CURSOR_TOOLTIP_OFFSET_Y = data["offsetY"];
+	}
 
-    cout << "IGNORE||ONE_ROW_TOOLTIP_HEIGHT=" << ONE_ROW_TOOLTIP_HEIGHT << endl;
-    cout << "IGNORE||TWO_ROW_TOOLTIP_HEIGHT=" << TWO_ROW_TOOLTIP_HEIGHT << endl;
-    cout << "IGNORE||CURSOR_TOOLTIP_OFFSET_X=" << CURSOR_TOOLTIP_OFFSET_X << endl;
-    cout << "IGNORE||CURSOR_TOOLTIP_OFFSET_Y=" << CURSOR_TOOLTIP_OFFSET_Y << endl;
+	tesseract::TessBaseAPI tess;
+	if (tess.Init(NULL, "eng") != 0) {
+		// Init failed
+		tess.End();
+		exit(1);
+	}
 
-    tesseract::TessBaseAPI tess;
-    if (tess.Init(NULL, "eng") != 0) {
-        // Init failed
-        tess.End();
-	    exit(1);
-    }
-    /*
-    using chrono::high_resolution_clock;
-    using chrono::duration_cast;
-    using chrono::duration;
-    using chrono::milliseconds;
+	string scanText{};
+	short checkRange = 50;
+	short red = 0;
+	short green = 0;
+	short blue = 0;
+	POINT mousePos{};
+	POINT lastValidMousePos{};
+	POINT bottomLeftBorderPoint{};
+	LONG width = 0;
+	LONG height = 0;
+	short offsetX = 0;
+	short offsetY = 0;
+	POINT bottomRightBorderPoint{};
+	POINT topLeftBorderPoint{};
+	//bool mouseIsStationary = false;
+	short mouseStationaryCount = 0;
+	bool foundTooltip = false;
+	bool borderIsVisible = false;
+	bool showedMouseMoved = false;
 
-    auto t1 = high_resolution_clock::now();
-    */
+	short horizontalCheckpoints[3] = { 50, 15, 5 };
+	short verticalCheckpoints[3] = { -15, -5, -2 };
+	while (true) {
+		if (GetCursorPos(&mousePos)) {
+			if (lastValidMousePos.x == mousePos.x && lastValidMousePos.y == mousePos.y) {
+				mouseStationaryCount++;
+			}
+			else
+			{
+				if (showedMouseMoved == false) {
+					cout << "MOUSEMOVE" << endl;
+					fflush(stdout);
+					showedMouseMoved = true;
+				}
+				mouseStationaryCount = 0;
+				foundTooltip = false;
+			}
 
-    string scanText{};
-    short checkRange = 50;
-    short offsetX = 0;
-    short offsetY = 0;
-    LONG width = 0;
-    LONG height = 0;
-    short red = 0;
-    short green = 0;
-    short blue = 0;
-    short checks = 0;
-    POINT mousePos{};
-    POINT lastValidMousePos{};
-    POINT initPoint{};
-    POINT finalPoint{};
-    bool outputMouseMove = true;
-    //short checkpoints[6] = { 50, 25, 12, 6, 3, 1 };
+			bottomLeftBorderPoint.x = mousePos.x + CURSOR_TOOLTIP_OFFSET_X;
+			bottomLeftBorderPoint.y = mousePos.y + CURSOR_TOOLTIP_OFFSET_Y;
 
-    short checkpoints[3] = { 50, 15, 5 };
-    while (true) {
-        if (GetCursorPos(&mousePos)) {
-            if (outputMouseMove && (lastValidMousePos.x != mousePos.x || lastValidMousePos.y != mousePos.y)) {
-                cout << "MOUSEMOVE" << endl;
-                lastValidMousePos = mousePos;
-                fflush(stdout);
-                outputMouseMove = false;
-            }
+			if (!foundTooltip && mouseStationaryCount > 2) {
+				if (pixelIsValid(bottomLeftBorderPoint.x, bottomLeftBorderPoint.y, red, green, blue)) {
+					borderIsVisible = true;
+				}
+				// Check the pixel to the top right of the config one
+				else if (pixelIsValid(bottomLeftBorderPoint.x + 1, bottomLeftBorderPoint.y - 1, red, green, blue)) {
+					bottomLeftBorderPoint.x++;
+					bottomLeftBorderPoint.y--;
+					borderIsVisible = true;
+				}
+				// Check the pixel to the bottom left of the config one
+				else if (pixelIsValid(bottomLeftBorderPoint.x - 1, bottomLeftBorderPoint.y + 1, red, green, blue)) {
+					bottomLeftBorderPoint.x--;
+					bottomLeftBorderPoint.y++;
+					borderIsVisible = true;
+				}
 
-            if (pixelIsValid(CURSOR_TOOLTIP_OFFSET_X, CURSOR_TOOLTIP_OFFSET_Y, red, green, blue) && !outputMouseMove) {
-                using chrono::high_resolution_clock;
-                using chrono::duration_cast;
-                using chrono::duration;
-                using chrono::milliseconds;
+				if (borderIsVisible) {
+					borderIsVisible = false;
+					offsetX = 0;
+					offsetY = 0;
+					//cout << bottomLeftBorderPoint.x << ',' << bottomLeftBorderPoint.y << endl;
 
-                //auto t1 = high_resolution_clock::now();
-                initPoint.x = mousePos.x + CURSOR_TOOLTIP_OFFSET_X;
-                initPoint.y = mousePos.y + CURSOR_TOOLTIP_OFFSET_Y;
-                checks = 0;
+					foundTooltip = true;
+					for (short i = 0; i < std::size(horizontalCheckpoints); i++) {
+						checkRange = horizontalCheckpoints[i];
+						getBottomRightBorderPoint(bottomLeftBorderPoint.x, bottomLeftBorderPoint.y, red, green, blue, offsetX, checkRange);
+					}
 
-                // 50
-                checkRange = 50;
-                offsetX = checkRange;
-                for (short i = 0; i < std::size(checkpoints); i++) {
-                    checkRange = checkpoints[i];
-                    offsetX += checkRange;
-                    getLastBorderPoint(CURSOR_TOOLTIP_OFFSET_X, CURSOR_TOOLTIP_OFFSET_Y, checks, red, green, blue, offsetX, checkRange);
-                }
+					bottomRightBorderPoint.x = bottomLeftBorderPoint.x + offsetX;
+					bottomRightBorderPoint.y = bottomLeftBorderPoint.y;
 
-                finalPoint.x = initPoint.x + offsetX;
-                finalPoint.y = initPoint.y;
+					for (short i = 0; i < std::size(verticalCheckpoints); i++) {
+						checkRange = verticalCheckpoints[i];
+						getTopLeftBorderPoint(bottomLeftBorderPoint.x, bottomLeftBorderPoint.y, red, green, blue, offsetY, checkRange);
+					}
 
-                offsetY = ONE_ROW_TOOLTIP_HEIGHT - 5;
-                if (pixelIsValid(CURSOR_TOOLTIP_OFFSET_X, CURSOR_TOOLTIP_OFFSET_Y, red, green, blue, offsetX, offsetY)) {
-                    initPoint.y += TWO_ROW_TOOLTIP_HEIGHT;
-                }
-                else {
-                    initPoint.y += ONE_ROW_TOOLTIP_HEIGHT;
-                }
-                //cout << '(' << red << ',' << green << ',' << blue << ')' << endl;
+					topLeftBorderPoint.x = bottomLeftBorderPoint.x;
+					topLeftBorderPoint.y = bottomLeftBorderPoint.y + offsetY;
 
-                // Moving to remove border
-                initPoint.x += 1;
-                initPoint.y += 1;
-                finalPoint.y += 1;
+					//cout << topLeftBorderPoint.x << ',' << topLeftBorderPoint.y << "|" << bottomRightBorderPoint.x << ',' << bottomRightBorderPoint.y << endl;
 
-                /*if (horizontal == 2560) {
-                    initPoint.x += 1;
-                    initPoint.y += 1;
-                }*/
+					width = bottomRightBorderPoint.x - bottomLeftBorderPoint.x;
+					height = bottomLeftBorderPoint.y - topLeftBorderPoint.y;
+					//cout << "Width: " << width << ", Height: " << height << ", Offset X: " << offsetX << ", Offset Y: " << offsetY << endl;
 
-                width = finalPoint.x - initPoint.x;
-                height = finalPoint.y - initPoint.y;
+					if (width > 10 && height > 10) {
+						scanText = scanForText(tess, topLeftBorderPoint.x + 1, topLeftBorderPoint.y + 1, width, height);
+						scanText = regex_replace(scanText, regex("\r\n"), " ");
+						scanText = regex_replace(scanText, regex("\n"), " ");
+						scanText = regex_replace(scanText, regex("@"), "0");
+						if (scanText.length() > 3) {
+							rtrim(scanText);
+							cout << scanText << "||" << mousePos.x << "," << mousePos.y << endl;
+							fflush(stdout);
+							showedMouseMoved = false;
+						}
+					}
+				}
+			}
 
-                if (width > 10 && height > 10) {
-                    //cout << initPoint.x << ',' << initPoint.y << '|' << finalPoint.x << ',' << finalPoint.y << endl;
-                    scanText = scanForText(tess, initPoint.x, initPoint.y, width, height);
-                    scanText = regex_replace(scanText, regex("\r\n"), "");
-                    scanText = regex_replace(scanText, regex("\n"), "");
-                    scanText = regex_replace(scanText, regex("@"), "0");
-                    if (scanText.length() > 3) {
-                        /*if (checkSettingsPixelColor()) {
-                            cout << scanText << "||" << mousePos.x << "," << mousePos.y << "||MENU" << endl;
-                        }
-                        else {*/
-                            cout << scanText << "||" << mousePos.x << "," << mousePos.y << endl;
-                        //}
-                        lastValidMousePos = mousePos;
-                        fflush(stdout);
-                        outputMouseMove = true;
-                    }
-                    //auto t2 = high_resolution_clock::now();
-                    //auto ms_int = duration_cast<milliseconds>(t2 - t1);
-                    //cout << ms_int.count() << "ms\n";
-                }
-                //cout << "Width: " << width << "Height: " << height << " Initial point: " << initPoint.x << ", Final point: " << finalPoint.x << "in " << checks << " checks" << endl;
-            }
-        }
+			lastValidMousePos = mousePos;
+		}
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(25));
-    }
+		std::this_thread::sleep_for(std::chrono::milliseconds(25));
+	}
 
 	tess.End();
-    return 0;
+	return 0;
 }

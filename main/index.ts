@@ -65,28 +65,51 @@ try {
     (await mainWindow).on("close", () => {
       app.quit();
     });
-    items = new Items();
-    await items.fetchItems();
 
-    setInterval(() => {
-      console.log("Refetching updated data");
-      items.fetchItems();
-    }, 1000 * 60 * 15);
-
-    items.initializeSearchIndex();
-
-    const ocr = new OCRProcess(items, BrowserWindow.getAllWindows()[0]);
-    ocr.initialize();
-    console.log("OCR PROCESS INITIALIZED");
     const tooltipWindow = new TooltipWindow();
     tooltipWindow.setIgnoreMouseEvents(true);
     console.log("TOOLTIP WINDOW CREATED");
+
+    items = new Items();
+    items
+      .fetchItems()
+      .then(async () => {
+        setInterval(() => {
+          console.log("Refetching updated data");
+          items.fetchItems();
+        }, 1000 * 60 * 15);
+
+        do {
+          try {
+            items.initializeSearchIndex();
+            console.log("Item search index initialized");
+            break;
+          } catch (error) {
+            console.log("Error initializing search index, retrying...", error);
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          }
+        } while (items.items.length === 0);
+
+        const ocr = new OCRProcess(items, BrowserWindow.getAllWindows()[0]);
+        ocr.initialize();
+        console.log("OCR PROCESS INITIALIZED");
+        ocr.tooltipWindow = tooltipWindow;
+        BrowserWindow.getAllWindows()[0].webContents.send(
+          IpcConstants.ItemsDatabaseReady
+        );
+      })
+      .catch((error) => {
+        console.log("FAILED TO FETCH ITEMS FROM API:", error);
+        BrowserWindow.getAllWindows()[0].webContents.send(
+          IpcConstants.ItemsDatabaseFailed
+        );
+      });
+
     tooltipWindow.on("ready-to-show", () => {
       console.log("TOOLTIP WINDOW READY TO SHOW");
       setTimeout(() => {
         const alwaysOnTopProcess = new AlwaysOnTopProcess();
         alwaysOnTopProcess.initialize();
-        ocr.tooltipWindow = tooltipWindow;
         BrowserWindow.getAllWindows()[0].webContents.send(
           IpcConstants.TooltipsReady
         );
@@ -189,30 +212,10 @@ try {
           }
 
           if (
-            data.toString().includes("HOVER OVER ITEM WITH TWO ROWS") &&
+            data.toString().includes("RESULT||") &&
             screenConfigureStep === 4
           ) {
             screenConfigureStep = 5;
-            BrowserWindow.getAllWindows()[0].webContents.send(
-              IpcConstants.ScreenConfigureScannedSingleRow
-            );
-          }
-
-          if (
-            data.toString().includes("Searching") &&
-            screenConfigureStep === 6
-          ) {
-            screenConfigureStep = 7;
-            BrowserWindow.getAllWindows()[0].webContents.send(
-              IpcConstants.ScreenConfigureScanningDoubleRow
-            );
-          }
-
-          if (
-            data.toString().includes("RESULT||") &&
-            screenConfigureStep === 7
-          ) {
-            screenConfigureStep = 8;
             BrowserWindow.getAllWindows()[0].webContents.send(
               IpcConstants.ScreenConfigureScanComplete
             );
@@ -223,13 +226,9 @@ try {
               .split("||");
             const offsetX = configData[0];
             const offsetY = configData[1];
-            const singleRowHeight = configData[2];
-            const doubleRowHeight = configData[3].replace("\r\n", "");
             const formattedConfigData = {
               offsetX: parseInt(offsetX),
               offsetY: parseInt(offsetY),
-              singleRowHeight: parseInt(singleRowHeight) * -1,
-              doubleRowHeight: parseInt(doubleRowHeight) * -1,
             };
 
             fs.writeFileSync(
@@ -243,7 +242,7 @@ try {
 
         screenConfigureProcess.on("close", function (code) {
           console.log("Screen configure process closed with code:", code);
-          if (screenConfigureStep !== 8) {
+          if (screenConfigureStep !== 5) {
             BrowserWindow.getAllWindows()[0].webContents.send(
               IpcConstants.EndScreenConfigure
             );
@@ -282,13 +281,6 @@ try {
         console.log("Advancing to step 3, searching for single row dimensions");
         screenConfigureStep = 3;
         screenConfigureProcess.stdin.write("NEXT\n");
-      }
-
-      if (screenConfigureStep === 5 && screenConfigureProcess) {
-        console.log("Advancing to step 6, searching for double row dimensions");
-        screenConfigureStep = 6;
-        screenConfigureProcess.stdin.write("NEXT\n");
-        screenConfigureProcess.stdin.end();
       }
     });
 

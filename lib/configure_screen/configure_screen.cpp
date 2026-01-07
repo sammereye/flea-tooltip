@@ -21,23 +21,11 @@ static bool pixelIsBorderColor(short& red, short& green, short& blue) {
     if (red == 82 && green == 89 && blue == 90) {
         return true;
     }
-    else if (red == 0 && green == 0 && blue == 0) {
-        return true;
-    }
-    else if (red == 11 && green == 12 && blue == 12) {
-        return true;
-    }
-    else if (red == 97 && green == 99 && blue == 96) {
-        return true;
-    }
-    else if (red == 83 && green == 90 && blue == 91) {
-        return true;
-    }
 
     return false;
 }
 
-static void LoopThroughPixels(LONG *endOffsetX, LONG *endOffsetY, LONG *boxHeight) {
+static void LoopThroughPixels(LONG *endOffsetX, LONG *endOffsetY) {
     HDC dc = NULL;
     COLORREF color = 0;
     POINT p;
@@ -82,32 +70,6 @@ static void LoopThroughPixels(LONG *endOffsetX, LONG *endOffsetY, LONG *boxHeigh
             }
         }
 
-        if (lowestPoint.x != 0 && lowestPoint.y != 0) {
-            //std::cout << "BORDER_COLOR at (" << lowestPoint.x << ", " << lowestPoint.y << "): " << (int)lowestPointRed << ", " << (int)lowestPointGreen << ", " << (int)lowestPointBlue << std::endl;
-            y = -1;
-            xRel = lowestPoint.x;
-
-            while (true) {
-                yRel = y + lowestPoint.y;
-
-                color = GetPixel(dc, xRel, yRel);
-                red = GetRValue(color);
-                green = GetGValue(color);
-                blue = GetBValue(color);
-                if (!pixelIsBorderColor(red, green, blue)) {
-                    *boxHeight = y * -1;
-                    break;
-                }
-
-                y--;
-            }
-            //std::cout << "LOWEST BORDER COLOR at (" << lowestPoint.x << ", " << lowestPoint.y << "): " << (int)red << ", " << (int)green << ", " << (int)blue << std::endl;
-        }
-        else
-        {
-            std::cout << "NOTFOUND" << std::endl;
-        }
-
 	    ReleaseDC(NULL, dc);
     }
 }
@@ -116,8 +78,6 @@ int main()
 {
     LONG endOffsetX = 0L;
     LONG endOffsetY = 0L;
-    LONG singleRowHeight = 0L;
-    LONG doubleRowHeight = 0L;
     std::string userInput = "";
 
     std::cout << "HOVER OVER ITEM WITH ONE ROW" << std::endl;
@@ -130,33 +90,9 @@ int main()
     } while (userInput != "NEXT");
     userInput = "";
 
-    LoopThroughPixels(&endOffsetX, &endOffsetY, &singleRowHeight);
+    LoopThroughPixels(&endOffsetX, &endOffsetY);
 
-    if (endOffsetX != 0 && endOffsetY != 0) {
-        //std::cout << "Offset X: " << endOffsetX << ", Offset Y: " << endOffsetY << ", Single Row Height: " << singleRowHeight << std::endl;
-        
-        std::cout << "HOVER OVER ITEM WITH TWO ROWS" << std::endl;
-        fflush(stdout);
-        do {
-            std::getline(std::cin, userInput);
-            if (userInput == "EXIT") {
-                return 0;
-            }
-        } while (userInput != "NEXT");
-        userInput = "";
-        LoopThroughPixels(&endOffsetX, &endOffsetY, &doubleRowHeight);
-        std::cout << "RESULT||" << endOffsetX << "||" << endOffsetY << "||" << singleRowHeight << "||" << doubleRowHeight << std::endl;
-        
-        /*json jsonOutput = {
-          {"singleRowHeight", -1*singleRowHeight},
-          {"doubleRowHeight", -1*doubleRowHeight},
-          {"offsetX", endOffsetX},
-          {"offsetY", endOffsetY},
-        };
-
-        std::ofstream o("config.json");
-        o << std::setw(4) << jsonOutput << std::endl;*/
-    }
+    std::cout << "RESULT||" << endOffsetX << "||" << endOffsetY << std::endl;
     std::this_thread::sleep_for(std::chrono::seconds(1));
     return 0;
 }
