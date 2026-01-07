@@ -9,7 +9,8 @@ export const PRICE_LIST = hookstate<ClientItem[]>([]);
 export const TOOLTIPS_READY = hookstate<boolean | "loading">(false);
 export const NO_SCANNING_CONFIG_FOUND = hookstate<boolean>(false);
 export const IN_SCREEN_CONFIG = hookstate<boolean>(false);
-export const SCREEN_CONFIG_STEP = hookstate<0 | 1 | 2 | 3 | 4 | 5 | 6>(0);
+export const SCREEN_CONFIG_STEP = hookstate<0 | 1 | 2 | 3 | 4>(0);
+export const ITEM_DATABASE_STATUS = hookstate<-1 | 0 | 1>(0);
 
 export function incomingItem(item: Item | null) {
   if (item) {
@@ -142,21 +143,9 @@ window.electron.receive(IpcConstants.ScreenConfigureScanningSingleRow, () => {
   }
 });
 
-window.electron.receive(IpcConstants.ScreenConfigureScannedSingleRow, () => {
-  if (IN_SCREEN_CONFIG.get()) {
-    SCREEN_CONFIG_STEP.set(4);
-  }
-});
-
-window.electron.receive(IpcConstants.ScreenConfigureScanningDoubleRow, () => {
-  if (IN_SCREEN_CONFIG.get()) {
-    SCREEN_CONFIG_STEP.set(5);
-  }
-});
-
 window.electron.receive(IpcConstants.ScreenConfigureScanComplete, () => {
   if (IN_SCREEN_CONFIG.get()) {
-    SCREEN_CONFIG_STEP.set(6);
+    SCREEN_CONFIG_STEP.set(4);
   }
 });
 
@@ -170,4 +159,12 @@ window.electron.receive(IpcConstants.DisableScreenConfigureNeeded, () => {
 
 window.electron.receive(IpcConstants.TooltipsReady, () => {
   TOOLTIPS_READY.set(true);
+});
+
+window.electron.receive(IpcConstants.ItemsDatabaseReady, () => {
+  ITEM_DATABASE_STATUS.set(1);
+});
+
+window.electron.receive(IpcConstants.ItemsDatabaseFailed, () => {
+  ITEM_DATABASE_STATUS.set(-1);
 });
