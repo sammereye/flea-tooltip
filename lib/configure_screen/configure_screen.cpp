@@ -17,8 +17,13 @@
 
 using json = nlohmann::json;
 
+// Configurable border colors (can be overridden via command line arguments)
+static short borderColorRed = 82;
+static short borderColorGreen = 89;
+static short borderColorBlue = 90;
+
 static bool pixelIsBorderColor(short& red, short& green, short& blue) {
-    if (red == 82 && green == 89 && blue == 90) {
+    if (red == borderColorRed && green == borderColorGreen && blue == borderColorBlue) {
         return true;
     }
 
@@ -74,8 +79,20 @@ static void LoopThroughPixels(LONG *endOffsetX, LONG *endOffsetY) {
     }
 }
 
-int main()
+int main(int argc, char* argv[])
 {
+    // Parse optional command line arguments for border colors: red green blue
+    if (argc >= 4) {
+        try {
+            borderColorRed = static_cast<short>(std::stoi(argv[1]));
+            borderColorGreen = static_cast<short>(std::stoi(argv[2]));
+            borderColorBlue = static_cast<short>(std::stoi(argv[3]));
+        }
+        catch (const std::exception& e) {
+            std::cerr << "Error parsing color arguments. Using default values." << std::endl;
+        }
+    }
+
     LONG endOffsetX = 0L;
     LONG endOffsetY = 0L;
     std::string userInput = "";

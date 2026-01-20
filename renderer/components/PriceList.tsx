@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState, useReducer } from "react";
 import {
   IN_SCREEN_CONFIG,
   NO_SCANNING_CONFIG_FOUND,
@@ -5,6 +6,9 @@ import {
   removeItemFromPriceList,
   SCREEN_CONFIG_STEP,
   ITEM_DATABASE_STATUS,
+  TRIGGER_SOUND_ON_SCAN_BIT,
+  TRIGGER_SOUND_ON_UP_BIT,
+  TRIGGER_SOUND_ON_EXISTS_BIT,
 } from "../state/priceList";
 import { ImmutableObject, useHookstate } from "@hookstate/core";
 import {
@@ -15,6 +19,10 @@ import {
 import { ClientItem } from "../../models/Item";
 import MostRecentItem from "../components/MostRecentItem";
 import NumberFlow, { useCanAnimate } from "@number-flow/react";
+import ScannedSound from "../assets/item-scanned.wav";
+import UppedSound from "../assets/item-upped.wav";
+import ItemExistsSound from "../assets/item-exists.wav";
+import Settings from "./Settings";
 
 export default function PriceList() {
   const priceListHook = useHookstate(PRICE_LIST);
@@ -22,13 +30,225 @@ export default function PriceList() {
   const screenConfigStepHook = useHookstate(SCREEN_CONFIG_STEP);
   const itemsDatabaseStatusHook = useHookstate(ITEM_DATABASE_STATUS);
   const noScanningConfigFoundHook = useHookstate(NO_SCANNING_CONFIG_FOUND);
+  const triggerSoundOnScanBitHook = useHookstate(TRIGGER_SOUND_ON_SCAN_BIT);
+  const triggerSoundOnUpBitHook = useHookstate(TRIGGER_SOUND_ON_UP_BIT);
   const priceList = priceListHook.get();
   const inScreenConfig = inScreenConfigHook.get();
   const screenConfigStep: 0 | 1 | 2 | 3 | 4 = screenConfigStepHook.get();
   const itemsDatabaseStatus: -1 | 0 | 1 = itemsDatabaseStatusHook.get();
   const noScanningConfigFound = noScanningConfigFoundHook.get();
+  const triggerSoundOnScanBit = triggerSoundOnScanBitHook.get();
+  const triggerSoundOnUpBit = triggerSoundOnUpBitHook.get();
+  const triggerSoundOnExistsBitHook = useHookstate(TRIGGER_SOUND_ON_EXISTS_BIT);
+  const triggerSoundOnExistsBit = triggerSoundOnExistsBitHook.get();
+
+  const itemScannedAudioRef = useRef<HTMLAudioElement>(null);
+  const itemUppedAudioRef = useRef<HTMLAudioElement>(null);
+  const itemExistsAudioRef = useRef<HTMLAudioElement>(null);
+  const previousSoundOnScanBitRef = useRef<boolean>(false);
+  const previousSoundOnUpBitRef = useRef<boolean>(false);
+  const previousSoundOnExistsBitRef = useRef<boolean>(false);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const totalValueRef = useRef<HTMLDivElement>(null);
+  const [totalGridPosition, setTotalGridPosition] = useState<{
+    columnStart: number;
+    rowStart: number;
+  }>({ columnStart: 1, rowStart: 1 });
+  const [showSettings, setShowSettings] = useState(false);
+  const [numCols, setNumCols] = useState(1);
+  const [numRows, setNumRows] = useState(1);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [soundVolume, setSoundVolume] = useState(1.0);
+  const [lowestAcceptableScore, setLowestAcceptableScore] = useState(50);
+  const [enableTooltips, setEnableTooltips] = useState(false);
+  const [isFrameless, setIsFrameless] = useState(false);
+  const [enableAlwaysOnTop, setEnableAlwaysOnTop] = useState(false);
+  const [tarkovMarketApiKey, setTarkovMarketApiKey] = useState("");
+  const [borderColorRed, setBorderColorRed] = useState(82);
+  const [borderColorGreen, setBorderColorGreen] = useState(89);
+  const [borderColorBlue, setBorderColorBlue] = useState(90);
+
+  // Reducer for calculating total loot value
+  type TotalLootValueState = number;
+  type TotalLootValueAction = {
+    type: "CALCULATE";
+    priceList: typeof priceList;
+  };
+
+  function totalLootValueReducer(
+    state: TotalLootValueState,
+    action: TotalLootValueAction
+  ): TotalLootValueState {
+    if (action.type === "CALCULATE") {
+      if (!action.priceList) {
+        return 0;
+      }
+      return [...action.priceList].reduce((total, item) => {
+        if (!item) return total;
+        const count = item.count > 0 ? item.count : 1;
+        const price = getItemsPricePerSlot(item as ClientItem) * item.slots;
+        return count * price + total;
+      }, 0);
+    }
+    return state;
+  }
+
+  const [totalLootValue, dispatchTotalLootValue] = useReducer(
+    totalLootValueReducer,
+    0
+  );
+
+  // Recalculate total loot value when priceList changes
+  useEffect(() => {
+    if (priceList) {
+      dispatchTotalLootValue({ type: "CALCULATE", priceList });
+    }
+  }, [priceList]);
 
   useCanAnimate({ respectMotionPreference: false });
+
+  // Load user config on mount
+  useEffect(() => {
+    const loadUserConfig = async () => {
+      try {
+        const config = await window.electron.getUserConfig();
+        setSoundEnabled(config.soundEnabled ?? true);
+        setSoundVolume(config.soundVolume ?? 1.0);
+        setEnableTooltips(config.enableTooltips ?? false);
+        setIsFrameless(config.isFrameless ?? false);
+        setEnableAlwaysOnTop(config.enableAlwaysOnTop ?? false);
+        setTarkovMarketApiKey(config.tarkovMarketApiKey ?? "");
+        setLowestAcceptableScore(config.lowestAcceptableScore ?? 50);
+        setBorderColorRed(config.borderColorRed ?? 82);
+        setBorderColorGreen(config.borderColorGreen ?? 89);
+        setBorderColorBlue(config.borderColorBlue ?? 90);
+        // Apply volume to audio element
+        if (itemScannedAudioRef.current && itemUppedAudioRef.current && itemExistsAudioRef.current) {
+          itemScannedAudioRef.current.volume = config.soundVolume ?? 1.0;
+          itemUppedAudioRef.current.volume = config.soundVolume ?? 1.0;
+          itemExistsAudioRef.current.volume = config.soundVolume ?? 1.0;
+        }
+      } catch (error) {
+        console.error("Failed to load user config:", error);
+      }
+    };
+    loadUserConfig();
+  }, []);
+
+  // Update audio volume when soundVolume changes
+  useEffect(() => {
+    if (itemScannedAudioRef.current && itemUppedAudioRef.current && itemExistsAudioRef.current) {
+      itemScannedAudioRef.current.volume = soundVolume;
+      itemUppedAudioRef.current.volume = soundVolume;
+      itemExistsAudioRef.current.volume = soundVolume;
+    }
+  }, [soundVolume]);
+
+  // Play sound when a new item is added
+  useEffect(() => {
+    // Play sound if a new item was added (bit flipped) and sound is enabled
+    if (
+      previousSoundOnScanBitRef.current != triggerSoundOnScanBit &&
+      soundEnabled
+    ) {
+      itemScannedAudioRef.current?.play().catch((error) => {
+        // Handle autoplay restrictions gracefully
+        console.log("Could not play sound:", error);
+      });
+    }
+
+    // Update the previous length for next comparison
+    previousSoundOnScanBitRef.current = triggerSoundOnScanBit;
+  }, [triggerSoundOnScanBit, soundEnabled]);
+  
+  useEffect(() => {
+    // Play sound if a item had quantity added (bit flipped) and sound is enabled
+    if (
+      previousSoundOnUpBitRef.current != triggerSoundOnUpBit &&
+      soundEnabled
+    ) {
+      itemUppedAudioRef.current?.play().catch((error) => {
+        // Handle autoplay restrictions gracefully
+        console.log("Could not play sound:", error);
+      });
+    }
+
+    // Update the previous length for next comparison
+    previousSoundOnUpBitRef.current = triggerSoundOnUpBit;
+  }, [triggerSoundOnUpBit, soundEnabled]);
+
+  // Play sound when an item already exists in the list
+  useEffect(() => {
+    // Play sound if an item already existed (bit flipped) and sound is enabled
+    if (
+      previousSoundOnExistsBitRef.current != triggerSoundOnExistsBit &&
+      soundEnabled
+    ) {
+      itemExistsAudioRef.current?.play().catch((error) => {
+        // Handle autoplay restrictions gracefully
+        console.log("Could not play exists sound:", error);
+      });
+    }
+
+    previousSoundOnExistsBitRef.current = triggerSoundOnExistsBit;
+  }, [triggerSoundOnExistsBit, soundEnabled]);
+
+  // Calculate grid dimensions and position Total Value in bottom right
+  useEffect(() => {
+    const calculateGridPosition = () => {
+      if (!gridRef.current) return;
+
+      if (totalValueRef.current) {
+        totalValueRef.current.style.display = "none";
+      }
+
+      const gridElement = gridRef.current;
+      const gridWidth = gridElement.clientWidth;
+      const gridHeight = gridElement.clientHeight;
+      const minColumnWidth = 70; // Minimum 70px per column
+      const minRowHeight = 30; // Minimum 30px per row
+
+      // Calculate number of columns and rows based on minimum sizes
+      // With minmax, grid will create as many tracks as fit with minimum size
+      const calculatedCols = Math.floor(gridWidth / minColumnWidth) || 1;
+      const calculatedRows = Math.floor(gridHeight / minRowHeight) || 1;
+
+      setNumCols(calculatedCols);
+      setNumRows(calculatedRows);
+
+      // Position Total Value in bottom right (spans 2 columns and 2 rows)
+      // Start at second-to-last column/row so it spans to the last
+      const columnStart = Math.max(1, calculatedCols - 1);
+      const rowStart = Math.max(1, numRows - 1);
+
+      setTotalGridPosition({ columnStart, rowStart });
+
+      if (totalValueRef.current) {
+        totalValueRef.current.style.display = "flex";
+      }
+    };
+
+    // Calculate on mount and when price list changes (with small delay for DOM update)
+    const timeoutId = setTimeout(calculateGridPosition, 0);
+
+    // Use ResizeObserver for accurate grid dimension tracking
+    if (!gridRef.current) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      calculateGridPosition();
+    });
+
+    resizeObserver.observe(gridRef.current);
+
+    // Also listen to window resize as fallback
+    window.addEventListener("resize", calculateGridPosition);
+
+    return () => {
+      clearTimeout(timeoutId);
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", calculateGridPosition);
+    };
+  }, [priceList]);
 
   if (noScanningConfigFound) {
     return (
@@ -168,52 +388,119 @@ export default function PriceList() {
         getItemsPricePerSlot(item2 as ClientItem) -
         getItemsPricePerSlot(item1 as ClientItem)
     );
-    const totalLootValue = [...priceList].reduce((total, item) => {
-      const count = item.count > 0 ? item.count : 1;
-      const price = getItemsPricePerSlot(item as ClientItem) * item.slots;
-      return count * price + total;
-    }, 0);
 
     return (
       <div className="tracking-wide flex flex-col h-full">
-        {/* <div className="flex flex-col gap-1.5 font-bold tracking-wide w-fit text-base mt-4">
-          {priceListSorted.map((item, i) => {
-            return (
-              <PriceListGridRow
-                key={item.id}
-                item={item}
-                lastItem={priceListSorted.length - 1 === i}
-              />
-            );
-          })}
-        </div> */}
-        <div className="grid grid-cols-5 grid-rows-5 font-medium tracking-wide text-base mt-1 w-full grid-flow-col grow max-h-[150px]">
-          {priceListSorted.length > 21 ? (
-            <div className="flex items-center max-w-full max-h-full overflow-hidden tracking-[-0.1px] odd:bg-white/10">
-              <div className="relative flex items-center gap-1 w-full h-full">
-                <div>
-                  <div className="px-2 font-bold cursor-pointer text-[11px] -mt-[3px] whitespace-nowrap">
-                    {priceListSorted.length - 21} items abv
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : null}
-          {priceListSorted.map((item, i) => {
-            if (
-              priceListSorted.length <= 21 ||
-              (priceListSorted.length > 21 && i > priceListSorted.length - 21)
-            ) {
-              return (
-                <PriceListGridRow
-                  key={item.id}
-                  item={item}
-                  lastItem={priceListSorted.length - 1 === i}
+        <audio ref={itemScannedAudioRef} id="item-added-sound" src={ScannedSound} />
+        <audio ref={itemUppedAudioRef} id="item-upped-sound" src={UppedSound} />
+        <audio ref={itemExistsAudioRef} id="item-exists-sound" src={ItemExistsSound} />
+        {showSettings && (
+          <Settings
+            onClose={() => setShowSettings(false)}
+            soundEnabled={soundEnabled}
+            onSoundEnabledChange={setSoundEnabled}
+            soundVolume={soundVolume}
+            onSoundVolumeChange={setSoundVolume}
+            enableTooltips={enableTooltips}
+            onEnableTooltipsChange={setEnableTooltips}
+            isFrameless={isFrameless}
+            onIsFramelessChange={setIsFrameless}
+            enableAlwaysOnTop={enableAlwaysOnTop}
+            onEnableAlwaysOnTopChange={setEnableAlwaysOnTop}
+            tarkovMarketApiKey={tarkovMarketApiKey}
+            onTarkovMarketApiKeyChange={setTarkovMarketApiKey}
+            lowestAcceptableScore={lowestAcceptableScore}
+            onLowestAcceptableScoreChange={setLowestAcceptableScore}
+            borderColorRed={borderColorRed}
+            onBorderColorRedChange={setBorderColorRed}
+            borderColorGreen={borderColorGreen}
+            onBorderColorGreenChange={setBorderColorGreen}
+            borderColorBlue={borderColorBlue}
+            onBorderColorBlueChange={setBorderColorBlue}
+          />
+        )}
+        <div
+          ref={gridRef}
+          className="grid grid-cols-[repeat(auto-fill,minmax(70px,1fr))] grid-rows-[repeat(auto-fill,minmax(30px,1fr))] font-medium tracking-wide text-base mt-1 w-full grid-flow-col grow"
+        >
+          {/* Settings button in top right */}
+          <div className="flex items-center justify-center" style={{
+            gridColumnStart: numCols,
+            gridRowStart: 1,
+          }}>
+            <button
+              onClick={() => setShowSettings(true)}
+              className="flex items-center justify-center hover:bg-white/20 transition-colors bg-[#444444] w-fit p-2.5 mx-auto rounded"
+              
+              aria-label="Open settings"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5 text-white"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
                 />
-              );
-            }
-          })}
-          <div className="flex flex-col h-full justify-center col-start-4 row-start-4 col-span-3 row-span-2 pl-2">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+            </button>
+            {isFrameless ? (
+              <div className="draggable relative flex items-center justify-center fill-white overflow-hidden">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5 text-white"><path d="M96 160C96 142.3 110.3 128 128 128L512 128C529.7 128 544 142.3 544 160C544 177.7 529.7 192 512 192L128 192C110.3 192 96 177.7 96 160zM96 320C96 302.3 110.3 288 128 288L512 288C529.7 288 544 302.3 544 320C544 337.7 529.7 352 512 352L128 352C110.3 352 96 337.7 96 320zM544 480C544 497.7 529.7 512 512 512L128 512C110.3 512 96 497.7 96 480C96 462.3 110.3 448 128 448L512 448C529.7 448 544 462.3 544 480z"/></svg>
+              </div>
+            ) : null }
+          </div>
+          {/* Calculate visible cells: numCols * numRows - 4 (for Total which spans 2x2, but effectively takes 4 cells) */}
+          {(() => {
+            const totalGridCells = numCols * numRows;
+            const totalOccupiedCells = 5; // Total spans 2x2 = 4 cells
+            const availableCells = totalGridCells - totalOccupiedCells;
+
+            const shouldShowOverflow = priceListSorted.length > availableCells;
+            const itemsToShow = shouldShowOverflow ? availableCells - 1 : availableCells; // -2 for overflow indicator
+
+            return (
+              <>
+                {shouldShowOverflow && (
+                  <div className="flex items-center max-w-full max-h-full overflow-hidden tracking-[-0.1px] odd:bg-white/10">
+                    <div className="relative flex items-center gap-1 w-full h-full">
+                      <div>
+                        <div className="px-2 font-bold cursor-pointer text-[11px] -mt-[3px] whitespace-nowrap">
+                          {priceListSorted.length - itemsToShow} items abv
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {priceListSorted.slice(shouldShowOverflow ? -itemsToShow : -availableCells).map((item, i, arr) => (
+                  <PriceListGridRow
+                    key={item.id}
+                    item={item}
+                    lastItem={i === arr.length - 1}
+                  />
+                ))}
+              </>
+            );
+          })()}
+          <div
+            className="flex flex-col h-full justify-center col-span-2 row-span-2 pl-2 select-none"
+            style={{
+              gridColumnStart: totalGridPosition.columnStart,
+              gridRowStart: totalGridPosition.rowStart,
+            }}
+            ref={totalValueRef}
+          >
             <span className="uppercase text-xs font-bold">Total</span>
             <h2 className="flex justify-center flex-col bg-white text-stone-900 px-2 rounded h-7 w-full font-['Bender']">
               <div className="flex items-end gap-0.5">
@@ -242,7 +529,7 @@ function PriceListGridRow({
   lastItem: boolean;
 }) {
   return (
-    <div className="flex items-center max-w-full max-h-full overflow-hidden tracking-[-0.1px] odd:bg-white/10">
+    <div className="flex items-center max-w-full max-h-full overflow-hidden tracking-[-0.1px] odd:bg-white/10 select-none">
       {/* <div className="h-9 w-9 flex items-center justify-center mr-1">
         <img
           src={item.icon}

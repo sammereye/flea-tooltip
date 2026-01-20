@@ -20,7 +20,7 @@ export function getItemsPricePerSlot(item: Item): number {
   );
   let price = fleaPricePerSlot;
 
-  const traderPricePerSlot = Math.ceil(item.prices.trader.price / item.slots);
+  const traderPricePerSlot = item?.prices?.trader?.price > 0 ? Math.ceil(item.prices.trader.price / item.slots) : 0;
 
   if (!item.availableOnFleaMarket || traderPricePerSlot > price) {
     price = traderPricePerSlot;

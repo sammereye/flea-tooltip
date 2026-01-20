@@ -31,9 +31,9 @@ async function createMainWindow(webpackEntry: string, preloadEntry: string) {
       spellcheck: false,
       preload: preloadEntry,
     },
-    frame: false,
+    frame: !userConfig.isFrameless,
     autoHideMenuBar: true,
-    transparent: true,
+    transparent: userConfig.isFrameless,
   };
 
   const win = new BrowserWindow(config);

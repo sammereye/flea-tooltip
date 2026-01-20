@@ -3001,7 +3001,7 @@ export function Tooltip() {
   const item = tooltipItem.get();
   const itemTasks = useMemo(() => {
     return itemsToKeep
-      .filter((x) => x.name === item?.name)
+      .filter((x) => x?.name === item?.name)
       .map<ItemTask>((x) => {
         return {
           task: x.task,
@@ -3017,7 +3017,7 @@ export function Tooltip() {
         ? item.prices.latest
         : item.prices.avgDay;
     const fleaPricePerSlot = Math.ceil(fleaPriceToUse / item.slots);
-    const traderPricePerSlot = Math.ceil(item.prices.trader.price / item.slots);
+    const traderPricePerSlot = item?.prices?.trader?.price > 0 ? Math.ceil(item.prices.trader.price / item.slots) : 0;
 
     return (
       <div className="block items-center p-1.5 bg-white rounded h-fit w-fit text-sm text-stone-700 font-['Bender'] font-black tracking-wide  overflow-y-hidden">
@@ -3058,9 +3058,9 @@ export function Tooltip() {
           )}
           <span className="capitalize">
             <span className="mr-1"></span>(
-            {tooltipItem.get()?.prices?.trader.name})
+            {tooltipItem.get()?.prices?.trader?.name ?? "N/A"})
           </span>
-        </div>
+        </div>  
 
         {/* TASKS */}
         {itemTasks.map((task, index) => (

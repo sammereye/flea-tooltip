@@ -16,22 +16,11 @@ export default class Items {
     this.items = [];
   }
 
-  async fetchItems(): Promise<void> {
-    let tarkovMarketApiKey = "";
-    if (
-      fs.existsSync(
-        isDev()
-          ? path.join(app.getAppPath(), "/tarkovMarketApiKey.txt")
-          : path.join(process.resourcesPath, "/../tarkovMarketApiKey.txt")
-      )
-    ) {
-      tarkovMarketApiKey = fs.readFileSync(
-        isDev()
-          ? path.join(app.getAppPath(), "/tarkovMarketApiKey.txt")
-          : path.join(process.resourcesPath, "/../tarkovMarketApiKey.txt"),
-        "utf-8"
-      );
-    }
+  async fetchItems(apiKey?: string): Promise<void> {
+    const tarkovMarketApiKey = apiKey || "";
+
+    // Clear existing items when refetching
+    this.items = [];
 
     try {
       if (tarkovMarketApiKey.trim() !== "") {
@@ -76,23 +65,31 @@ export default class Items {
         });
 
         this.items = formattedData;
+      } else {
+        console.log("No API key provided, fetching items from Tarkov.dev API");
+        const itemsFromApi = await this.getItemsPromise();
+        console.log(itemsFromApi.length + " items fetched from API");
+        this.items = itemsFromApi;
       }
-    } catch {
-      console.error("Failed to fetch items from Tarkov Market API");
-    }
+    } catch (error) {
+      console.error("Failed to fetch items from Tarkov Market API:", error);
 
-    if (this.items.length === 0) {
-      console.log("Fetching items from Tarkov.dev API");
-      this.getItemsPromise()
-        .then((itemsFromApi) => {
-          console.log(itemsFromApi.length + " items fetched from API");
-          // const data = await response.json();
-          this.items = itemsFromApi;
-        })
-        .catch((error) => {
-          console.error("Failed to fetch items from Tarkov.dev API:", error);
-          throw new Error("Failed to fetch items from API");
-        });
+      // If Tarkov Market API fails and we have an API key, don't fall back
+      // If we don't have an API key, we already tried Tarkov.dev above
+      if (tarkovMarketApiKey.trim() === "") {
+        throw new Error("Failed to fetch items from API");
+      }
+
+      // Try Tarkov.dev as fallback when API key fails
+      try {
+        console.log("Falling back to Tarkov.dev API");
+        const itemsFromApi = await this.getItemsPromise();
+        console.log(itemsFromApi.length + " items fetched from API");
+        this.items = itemsFromApi;
+      } catch (fallbackError) {
+        console.error("Failed to fetch items from Tarkov.dev API:", fallbackError);
+        throw new Error("Failed to fetch items from API");
+      }
     }
   }
 
@@ -117,7 +114,27 @@ export default class Items {
       },
       body: JSON.stringify({
         query:
-          "{\n            itemsByType(type:any){\n                id\n                name\n                shortName\n                basePrice\n                normalizedName\n                types\n                width\n                height\n                avg24hPrice\n                wikiLink\n                changeLast48h\n                low24hPrice\n                high24hPrice\n                lastLowPrice\n            historicalPrices { price priceMin timestamp }\n                gridImageLink\n                iconLink\n                traderPrices {\n                    price\n                    trader {\n                        name\n                    }\n                }\n                sellFor {\n                    source\n                    price\n                    requirements {\n                        type\n                        value\n                    }\n                    currency\n                }\n                buyFor {\n                    source\n                    price\n                    currency\n                    requirements {\n                        type\n                        value\n                    }\n                }\n                containsItems {\n                    count\n                    item {\n                        id\n                    }\n                }\n            }\n        }",
+          `
+          {
+            items(type:any){
+                id
+                name
+                shortName
+                width
+                height
+                avg24hPrice
+                lastLowPrice
+                iconLink
+                sellFor {
+                  vendor {
+                    name
+                  }
+                  price
+                  currency
+                }
+            } 
+        }
+          `
       }),
     };
 
@@ -126,7 +143,7 @@ export default class Items {
         if (error) {
           reject(error);
         } else {
-          const itemData = JSON.parse(response.body).data.itemsByType;
+          const itemData = JSON.parse(response.body).data.items;
           const formattedData: Item[] = itemData.map((item: any) => {
             return {
               id: item.id,
@@ -134,7 +151,7 @@ export default class Items {
               shortName: item.shortName,
               availableOnFleaMarket:
                 item?.sellFor?.filter(
-                  (x: { source: string }) => x.source === "fleaMarket"
+                  (x: { vendor: { name: string } }) => x.vendor.name === "Flea Market"
                 )?.length > 0,
               prices: {
                 latest: item.avg24hPrice,
@@ -143,11 +160,11 @@ export default class Items {
                   item.sellFor && Array.isArray(item.sellFor)
                     ? item.sellFor
                         .filter(
-                          (x: { source: string }) => x.source !== "fleaMarket"
+                          (x: { vendor: { name: string } }) => x.vendor.name !== "Flea Market"
                         )
-                        .map((x: { price: number; source: string }) => {
+                        .map((x: { price: number; vendor: { name: string } }) => {
                           return {
-                            name: x.source,
+                            name: x.vendor.name,
                             price: x.price,
                           };
                         })

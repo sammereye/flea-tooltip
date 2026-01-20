@@ -14,7 +14,15 @@
     "jsx": "react-jsx",
     "paths": {
       "*": ["node_modules/*"]
-    }
+    },
+    "declaration": true
   },
-  "include": ["src/**/*", "renderer/App.tsx", "main/renderer/main.ts", "main/preloads/main.ts", "main/index.ts"]
+  "include": [
+    "src/**/*",
+    "renderer/App.tsx",
+    "main/renderer/main.ts",
+    "main/preloads/main.ts",
+    "main/index.ts",
+    "assets.d.ts"
+  ]
 }
