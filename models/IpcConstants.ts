@@ -16,4 +16,12 @@ export default class IpcConstants {
   static TooltipsReady = "tooltips-ready";
   static ItemsDatabaseReady = "items-database-ready";
   static ItemsDatabaseFailed = "items-database-failed";
+  static GetUserConfig = "get-user-config";
+  static SetUserConfig = "set-user-config";
+  static ToggleTooltips = "toggle-tooltips";
+  static ToggleFrameless = "toggle-frameless";
+  static ToggleAlwaysOnTop = "toggle-always-on-top";
+  static GetAllItems = "get-all-items";
+  static ValidateApiKey = "validate-api-key";
+  static RefetchItems = "refetch-items";
 }

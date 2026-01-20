@@ -11,10 +11,15 @@ export const NO_SCANNING_CONFIG_FOUND = hookstate<boolean>(false);
 export const IN_SCREEN_CONFIG = hookstate<boolean>(false);
 export const SCREEN_CONFIG_STEP = hookstate<0 | 1 | 2 | 3 | 4>(0);
 export const ITEM_DATABASE_STATUS = hookstate<-1 | 0 | 1>(0);
+export const TRIGGER_SOUND_ON_SCAN_BIT = hookstate<boolean>(false);
+export const TRIGGER_SOUND_ON_UP_BIT = hookstate<boolean>(false);
+export const TRIGGER_SOUND_ON_EXISTS_BIT = hookstate<boolean>(false);
 
 export function incomingItem(item: Item | null) {
   if (item) {
     const newItem = new ClientItem(item);
+    const itemExists = PRICE_LIST.get().some((x) => x.id === item.id);
+
     PRICE_LIST.set((prevValue) => {
       let existingItem = newItem;
       const checkForExistingItemFilter = [...prevValue].filter(
@@ -39,6 +44,17 @@ export function incomingItem(item: Item | null) {
         existingItem,
       ];
     });
+
+    // Play different sound based on whether item already existed
+    if (itemExists) {
+      TRIGGER_SOUND_ON_EXISTS_BIT.set(
+        (triggerSoundOnExistsBit) => !triggerSoundOnExistsBit
+      );
+    } else {
+      TRIGGER_SOUND_ON_SCAN_BIT.set(
+        (triggerSoundOnScanBit) => !triggerSoundOnScanBit
+      );
+    }
   }
 }
 
@@ -51,10 +67,9 @@ export function addToItemCount() {
     if (mostRecentlyAddedItemFilter.length > 0) {
       const mostRecentlyAddedItem = mostRecentlyAddedItemFilter[0];
       mostRecentlyAddedItem.count += 1;
-      [
-        ...prevValue.filter((x) => x.id !== mostRecentlyAddedItem.id),
-        mostRecentlyAddedItem,
-      ];
+      TRIGGER_SOUND_ON_UP_BIT.set(
+        (triggerSoundOnUpBit) => !triggerSoundOnUpBit
+      );
     }
 
     return prevValue;
@@ -89,7 +104,6 @@ export function removeLastItemFromPriceList() {
     if (prevValue.length === 0) {
       return prevValue;
     }
-
     return prevValue.slice(0, -1);
   });
 }

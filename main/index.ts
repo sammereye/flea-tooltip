@@ -18,6 +18,8 @@ import log from "electron-log/main";
 import { isDev } from "../utils";
 import { ChildProcessWithoutNullStreams, spawn } from "child_process";
 import fs from "fs";
+import { getUserConfigData, setUserConfigData } from "./services/config";
+import { UserConfig } from "../models/UserConfig";
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -29,6 +31,8 @@ try {
   let items: Items;
   let screenConfigureStep: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 = 0;
   let screenConfigureProcess: ChildProcessWithoutNullStreams | null = null;
+  let tooltipWindow: TooltipWindow | null = null;
+  let ocr: OCRProcess | null = null;
 
   log.initialize();
 
@@ -61,39 +65,141 @@ try {
       MAIN_WINDOW_WEBPACK_ENTRY,
       MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY
     );
-    (await mainWindow).setIgnoreMouseEvents(true);
+
+    const userConfig = getUserConfigData();
+
+    // (await mainWindow).setIgnoreMouseEvents(true);
     (await mainWindow).on("close", () => {
       app.quit();
     });
 
-    const tooltipWindow = new TooltipWindow();
-    tooltipWindow.setIgnoreMouseEvents(true);
-    console.log("TOOLTIP WINDOW CREATED");
+    (await mainWindow).on("ready-to-show", () => {
+      if (userConfig.enableAlwaysOnTop) {
+        new AlwaysOnTopProcess().initialize();
+      }
+    });
+
+    // Function to initialize tooltips
+    function initializeTooltips() {
+      if (tooltipWindow && !tooltipWindow.isDestroyed()) {
+        console.log("Tooltip window already exists");
+        return;
+      }
+
+      if (!ocr) {
+        console.error("Cannot initialize tooltips: OCR not initialized");
+        return;
+      }
+
+      try {
+        tooltipWindow = new TooltipWindow();
+        tooltipWindow.setIgnoreMouseEvents(true);
+        console.log("TOOLTIP WINDOW CREATED");
+
+        tooltipWindow.on("ready-to-show", () => {
+          console.log("TOOLTIP WINDOW READY TO SHOW");
+          setTimeout(() => {
+            const userConfig = getUserConfigData();
+            if (userConfig.enableAlwaysOnTop) {
+              new AlwaysOnTopProcess().initialize();
+            }
+            BrowserWindow.getAllWindows()[0].webContents.send(
+              IpcConstants.TooltipsReady
+            );
+          }, 1000);
+        });
+
+        ocr.tooltipWindow = tooltipWindow;
+        console.log("Tooltips initialized successfully");
+      } catch (error) {
+        log.error("Failed to initialize tooltips:", error);
+      }
+    }
+
+    // Function to destroy tooltips
+    function destroyTooltips() {
+      if (ocr) {
+        ocr.tooltipWindow = null;
+      }
+
+      if (tooltipWindow && !tooltipWindow.isDestroyed()) {
+        tooltipWindow.destroy();
+        tooltipWindow = null;
+        console.log("Tooltip window destroyed");
+      }
+    }
 
     items = new Items();
+    const initialUserConfig = getUserConfigData();
     items
-      .fetchItems()
+      .fetchItems(initialUserConfig.tarkovMarketApiKey)
       .then(async () => {
         setInterval(() => {
           console.log("Refetching updated data");
-          items.fetchItems();
+          const userConfig = getUserConfigData();
+          items.fetchItems(userConfig.tarkovMarketApiKey);
         }, 1000 * 60 * 15);
 
-        do {
-          try {
-            items.initializeSearchIndex();
-            console.log("Item search index initialized");
-            break;
-          } catch (error) {
-            console.log("Error initializing search index, retrying...", error);
-            await new Promise((resolve) => setTimeout(resolve, 500));
-          }
-        } while (items.items.length === 0);
+        // Initialize search index with retry logic
+        const maxRetries = 100;
+        const retryDelay = 400;
+        let retryCount = 0;
+        let searchIndexInitialized = false;
 
-        const ocr = new OCRProcess(items, BrowserWindow.getAllWindows()[0]);
+        while (!searchIndexInitialized && retryCount < maxRetries) {
+          try {
+            // Check if items are loaded before attempting initialization
+            if (items.items.length === 0) {
+              retryCount++;
+              if (retryCount < maxRetries) {
+                await new Promise((resolve) => setTimeout(resolve, retryDelay));
+                continue;
+              } else {
+                throw new Error(
+                  "Items not loaded after maximum retries - cannot initialize search index"
+                );
+              }
+            }
+
+            // Attempt to initialize search index
+            items.initializeSearchIndex();
+
+            // Verify search index was actually created
+            if (items.searchIndex) {
+              searchIndexInitialized = true;
+              console.log("Item search index initialized successfully");
+            } else {
+              throw new Error(
+                "Search index initialization returned without creating index"
+              );
+            }
+          } catch (error) {
+            retryCount++;
+            if (retryCount < maxRetries) {
+              log.warn(
+                `Error initializing search index (attempt ${retryCount}/${maxRetries}), retrying in ${retryDelay}ms...`,
+                error
+              );
+              await new Promise((resolve) => setTimeout(resolve, retryDelay));
+            } else {
+              log.error(
+                "Failed to initialize search index after maximum retries",
+                error
+              );
+              throw error;
+            }
+          }
+        }
+
+        ocr = new OCRProcess(items, BrowserWindow.getAllWindows()[0]);
         ocr.initialize();
         console.log("OCR PROCESS INITIALIZED");
-        ocr.tooltipWindow = tooltipWindow;
+
+        // Initialize tooltips if enabled in config
+        if (userConfig.enableTooltips) {
+          initializeTooltips();
+        }
+
         BrowserWindow.getAllWindows()[0].webContents.send(
           IpcConstants.ItemsDatabaseReady
         );
@@ -104,17 +210,6 @@ try {
           IpcConstants.ItemsDatabaseFailed
         );
       });
-
-    tooltipWindow.on("ready-to-show", () => {
-      console.log("TOOLTIP WINDOW READY TO SHOW");
-      setTimeout(() => {
-        const alwaysOnTopProcess = new AlwaysOnTopProcess();
-        alwaysOnTopProcess.initialize();
-        BrowserWindow.getAllWindows()[0].webContents.send(
-          IpcConstants.TooltipsReady
-        );
-      }, 1000);
-    });
 
     // FOR SOME REASON THESE BREAK THE APP WHEN PACKAGED |||||||||||||||||||||||||||||| WARNING
     // const tray = new Tray(path.join(app.getAppPath(), "/favicon.ico"));
@@ -174,7 +269,11 @@ try {
 
       if (screenConfigureStep === 0) {
         const startTime = Date.now();
-        console.log("Starting screen configure");
+        const userConfig = getUserConfigData();
+        const redValue = userConfig.borderColorRed ?? 82;
+        const greenValue = userConfig.borderColorGreen ?? 89;
+        const blueValue = userConfig.borderColorBlue ?? 90;
+        console.log("Starting screen configure with values:", redValue, greenValue, blueValue);
         BrowserWindow.getAllWindows()[0].webContents.send(
           IpcConstants.StartScreenConfigure
         );
@@ -182,16 +281,21 @@ try {
           IpcConstants.DisableScreenConfigureNeeded
         );
         screenConfigureStep = 1;
+        // Get RGB border color values from config
+        
+
         screenConfigureProcess = isDev()
           ? spawn(
-              path.join(app.getAppPath(), "/lib/ocr/configure_screen.exe")
+              path.join(app.getAppPath(), "/lib/ocr/configure_screen.exe"),
+              [redValue.toString(), greenValue.toString(), blueValue.toString()]
               // {
               //   detached: true,
               //   shell: true,
               // }
             )
           : spawn(
-              path.join(process.resourcesPath, "/ocr/configure_screen.exe")
+              path.join(process.resourcesPath, "/ocr/configure_screen.exe"),
+              [redValue.toString(), greenValue.toString(), blueValue.toString()]
             );
 
         screenConfigureProcess.stdout.setEncoding("utf-8");
@@ -287,6 +391,128 @@ try {
     globalShortcut.register("F12", () => {
       BrowserWindow.getAllWindows()[0].webContents.openDevTools();
     });
+
+    // IPC handlers for user config
+    ipcMain.handle(IpcConstants.GetUserConfig, () => {
+      return getUserConfigData();
+    });
+
+    ipcMain.handle(IpcConstants.GetAllItems, () => {
+      if (items && items.itemsAreLoaded()) {
+        return items.items;
+      }
+      return [];
+    });
+
+    ipcMain.handle(IpcConstants.ValidateApiKey, async (_event, apiKey: string) => {
+      try {
+        const response = await fetch(
+          "https://api.tarkov-market.app/api/v1/items/all",
+          {
+            method: "GET",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+              "x-api-key": apiKey,
+            },
+          }
+        );
+
+        return response.status === 200 || response.status === 204;
+      } catch (error) {
+        console.error("API key validation failed:", error);
+        return false;
+      }
+    });
+
+    ipcMain.handle(IpcConstants.RefetchItems, async () => {
+      try {
+        if (items) {
+          const userConfig = getUserConfigData();
+          await items.fetchItems(userConfig.tarkovMarketApiKey);
+          return true;
+        }
+        return false;
+      } catch (error) {
+        console.error("Failed to refetch items:", error);
+        return false;
+      }
+    });
+
+    ipcMain.handle(
+      IpcConstants.SetUserConfig,
+      (_event, userConfig: UserConfig) => {
+        setUserConfigData(userConfig);
+        return true;
+      }
+    );
+
+    // IPC handler to toggle tooltips
+    ipcMain.handle(IpcConstants.ToggleTooltips, (_event, enabled: boolean) => {
+      if (enabled) {
+        initializeTooltips();
+      } else {
+        destroyTooltips();
+      }
+      return true;
+    });
+
+    // IPC handler to toggle frameless mode
+    ipcMain.handle(
+      IpcConstants.ToggleFrameless,
+      async (_event, enabled: boolean) => {
+        const windows = BrowserWindow.getAllWindows();
+        if (windows.length > 0) {
+          const win = windows[0];
+          // Remove the close listener temporarily so the app doesn't quit
+          win.removeAllListeners("close");
+
+          win.close();
+
+          setTimeout(async () => {
+            // Re-open the main window. openMainWindow will create a new one since windows.length is now 0.
+            // It will use the updated user config.
+            const newWin = await openMainWindow(
+              MAIN_WINDOW_WEBPACK_ENTRY,
+              MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY
+            );
+
+            if (ocr) {
+              ocr.setPriceListWindow(newWin);
+            }
+
+            if (items && items.itemsAreLoaded()) {
+              newWin.webContents.send(IpcConstants.ItemsDatabaseReady);
+            }
+
+            if (getUserConfigData().enableAlwaysOnTop) {
+              new AlwaysOnTopProcess().initialize();
+            }
+
+            newWin.on("close", () => {
+              app.quit();
+            });
+          }, 1000);
+        }
+        return true;
+      }
+    );
+
+    // IPC handler to toggle always on top
+    ipcMain.handle(
+      IpcConstants.ToggleAlwaysOnTop,
+      async (_event, enabled: boolean) => {
+        if (enabled) {
+          new AlwaysOnTopProcess().initialize();
+        }
+
+        const userConfig: UserConfig = getUserConfigData();
+        userConfig.enableAlwaysOnTop = enabled;
+        setUserConfigData(userConfig);
+
+        return true;
+      }
+    );
 
     // log.info("MEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEOW");
     // ipcMain.on(IpcConstants.EnableTooltips, async (event, ...args) => {

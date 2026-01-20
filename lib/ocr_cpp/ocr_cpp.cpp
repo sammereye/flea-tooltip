@@ -18,6 +18,11 @@
 using namespace std;
 using json = nlohmann::json;
 
+// Configurable border color (can be overridden via command line arguments)
+static short borderColorRed = 82;
+static short borderColorGreen = 89;
+static short borderColorBlue = 90;
+
 class Image
 {
 private:
@@ -84,21 +89,9 @@ Image::Image(HDC DC, int X, int Y, int Width, int Height) : Pixels(), width(Widt
 }
 
 static bool pixelIsBorderColor(short& red, short& green, short& blue) {
-	if (red == 82 && green == 89 && blue == 90) {
+	if (red == borderColorRed && green == borderColorGreen && blue == borderColorBlue) {
 		return true;
 	}
-	/*else if (red == 0 && green == 0 && blue == 0) {
-		return true;
-	}
-	else if (red == 11 && green == 12 && blue == 12) {
-		return true;
-	}*/
-	/*else if (red == 97 && green == 99 && blue == 96) {
-		return true;
-	}
-	else if (red == 83 && green == 90 && blue == 91) {
-		return true;
-	}*/
 
 	return false;
 }
@@ -185,8 +178,20 @@ static void rtrim(std::string& s) {
 	}
 }
 
-int main()
+int main(int argc, char* argv[])
 {
+	// Parse optional command line arguments for border color: red green blue
+	if (argc >= 4) {
+		try {
+			borderColorRed = static_cast<short>(std::stoi(argv[1]));
+			borderColorGreen = static_cast<short>(std::stoi(argv[2]));
+			borderColorBlue = static_cast<short>(std::stoi(argv[3]));
+		}
+		catch (const std::exception& e) {
+			std::cerr << "Error parsing color arguments. Using default values." << std::endl;
+		}
+	}
+
 	short CURSOR_TOOLTIP_OFFSET_X{};
 	short CURSOR_TOOLTIP_OFFSET_Y{};
 

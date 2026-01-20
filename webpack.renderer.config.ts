@@ -1,16 +1,25 @@
-import type { Configuration } from 'webpack';
+import type { Configuration } from "webpack";
 
-import { rules } from './webpack.rules';
-import { plugins } from './webpack.plugins';
+import { rules } from "./webpack.rules";
+import { plugins } from "./webpack.plugins";
 
 rules.push({
   test: /\.css$/,
-  use: [{ loader: 'style-loader' }, { loader: 'css-loader' }, { loader: 'postcss-loader' }],
+  use: [
+    { loader: "style-loader" },
+    { loader: "css-loader" },
+    { loader: "postcss-loader" },
+  ],
 });
 
 rules.push({
   test: /\.(woff|woff2|eot|ttf|otf)$/i,
-  type: 'asset/resource',
+  type: "asset/resource",
+});
+
+rules.push({
+  test: /\.(wav|mp3|ogg|m4a)$/i,
+  type: "asset/resource",
 });
 
 export const rendererConfig: Configuration = {
@@ -19,7 +28,7 @@ export const rendererConfig: Configuration = {
   },
   plugins,
   resolve: {
-    extensions: ['.js', '.ts', '.jsx', '.tsx', '.css'],
+    extensions: [".js", ".ts", ".jsx", ".tsx", ".css"],
   },
   // target: 'electron-renderer',
 };

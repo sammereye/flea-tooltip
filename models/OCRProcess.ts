@@ -8,6 +8,7 @@ import { isDev } from "../utils";
 import koffi from "koffi";
 import log from "electron-log";
 import Item from "./Item";
+import { getUserConfigData } from "../main/services/config";
 
 export default class OCRProcess {
   constructor(items: Items, priceListWindow: BrowserWindow) {
@@ -24,6 +25,10 @@ export default class OCRProcess {
   protected itemNamesLowerCaseList: string[] = [];
   protected user32: koffi.IKoffiLib;
   protected Point: koffi.IKoffiCType;
+
+  public setPriceListWindow(priceListWindow: BrowserWindow): void {
+    this.priceListWindow = priceListWindow;
+  }
 
   getMousePos(): { x: number; y: number } | null {
     const GetCursorPos = this.user32.func(
@@ -48,14 +53,20 @@ export default class OCRProcess {
       y: "long",
     });
 
-    const onNewData = this.onNewData;
+    // Get RGB border color values from config
+    const userConfig = getUserConfigData();
+    const redValue = userConfig.borderColorRed ?? 82;
+    const greenValue = userConfig.borderColorGreen ?? 89;
+    const blueValue = userConfig.borderColorBlue ?? 90;
+
     isDev()
-      ? console.log("Initializing OCR process")
+      ? console.log("Initializing OCR process with values:", redValue, greenValue, blueValue)
       : log.info("Initializing OCR process");
+
     // const ocrProcess = ;
     const ocrProcess = isDev()
-      ? spawn(path.join(app.getAppPath(), "/lib/ocr/ocr_cpp.exe"))
-      : spawn(path.join(process.resourcesPath, "/ocr/ocr_cpp.exe"));
+      ? spawn(path.join(app.getAppPath(), "/lib/ocr/ocr_cpp.exe"), [redValue.toString(), greenValue.toString(), blueValue.toString()])
+      : spawn(path.join(process.resourcesPath, "/ocr/ocr_cpp.exe"), [redValue.toString(), greenValue.toString(), blueValue.toString()]);
 
     ocrProcess.stdout.setEncoding("utf-8");
     ocrProcess.stdout.on("data", this.onNewData.bind(this));
@@ -145,14 +156,15 @@ export default class OCRProcess {
               "key tool",
             ];
 
-            if (this.items) {
+            if (this.items && this.items.search) {
+              const userConfig = getUserConfigData();
               item = this.items.search(
                 itemName,
                 allowedLowerScoreItems.filter((i) =>
                   itemName.toLowerCase().includes(i)
                 ).length > 0
                   ? 12
-                  : 50
+                  : userConfig.lowestAcceptableScore ?? 50
               );
             }
           }
