@@ -47,6 +47,11 @@ function createUserConfigFile(userDataPath: string): void {
     borderColorRed: 82,
     borderColorGreen: 89,
     borderColorBlue: 90,
+    enableMainWindowToggle: true,
+    enableDeleteLowestItem: true,
+    enableDeleteLastItem: true,
+    enableIncrementLastItem: true,
+    enableScreenCalibration: true,
   };
 
   fs.writeFileSync(
