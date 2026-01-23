@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useReducer } from "react";
+import { useEffect, useRef, useState, useReducer, useMemo } from "react";
 import {
   IN_SCREEN_CONFIG,
   NO_SCANNING_CONFIG_FOUND,
@@ -57,6 +57,9 @@ export default function PriceList() {
   const [showSettings, setShowSettings] = useState(false);
   const [numCols, setNumCols] = useState(1);
   const [numRows, setNumRows] = useState(1);
+  const [shouldShowOverflow, setShouldShowOverflow] = useState(false);
+  const [itemsToShow, setItemsToShow] = useState(0);
+  const [availableCells, setAvailableCells] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [soundVolume, setSoundVolume] = useState(1.0);
   const [lowestAcceptableScore, setLowestAcceptableScore] = useState(50);
@@ -67,6 +70,11 @@ export default function PriceList() {
   const [borderColorRed, setBorderColorRed] = useState(82);
   const [borderColorGreen, setBorderColorGreen] = useState(89);
   const [borderColorBlue, setBorderColorBlue] = useState(90);
+  const [enableMainWindowToggle, setEnableMainWindowToggle] = useState(true);
+  const [enableDeleteLowestItem, setEnableDeleteLowestItem] = useState(true);
+  const [enableDeleteLastItem, setEnableDeleteLastItem] = useState(true);
+  const [enableIncrementLastItem, setEnableIncrementLastItem] = useState(true);
+  const [enableScreenCalibration, setEnableScreenCalibration] = useState(true);
 
   // Reducer for calculating total loot value
   type TotalLootValueState = number;
@@ -122,6 +130,11 @@ export default function PriceList() {
         setBorderColorRed(config.borderColorRed ?? 82);
         setBorderColorGreen(config.borderColorGreen ?? 89);
         setBorderColorBlue(config.borderColorBlue ?? 90);
+        setEnableMainWindowToggle(config.enableMainWindowToggle ?? true);
+        setEnableDeleteLowestItem(config.enableDeleteLowestItem ?? true);
+        setEnableDeleteLastItem(config.enableDeleteLastItem ?? true);
+        setEnableIncrementLastItem(config.enableIncrementLastItem ?? true);
+        setEnableScreenCalibration(config.enableScreenCalibration ?? true);
         // Apply volume to audio element
         if (itemScannedAudioRef.current && itemUppedAudioRef.current && itemExistsAudioRef.current) {
           itemScannedAudioRef.current.volume = config.soundVolume ?? 1.0;
@@ -193,6 +206,15 @@ export default function PriceList() {
     previousSoundOnExistsBitRef.current = triggerSoundOnExistsBit;
   }, [triggerSoundOnExistsBit, soundEnabled]);
 
+  const priceListSorted = useMemo(() => {
+    return [...priceList].sort(
+      (item1, item2) =>
+        getItemsPricePerSlot(item2 as ClientItem) -
+        getItemsPricePerSlot(item1 as ClientItem)
+    );
+  }, [priceList]);
+  
+
   // Calculate grid dimensions and position Total Value in bottom right
   useEffect(() => {
     const calculateGridPosition = () => {
@@ -215,6 +237,18 @@ export default function PriceList() {
 
       setNumCols(calculatedCols);
       setNumRows(calculatedRows);
+
+
+      const totalGridCells = numCols * numRows;
+            const totalOccupiedCells = 5; // Total spans 2x2 = 4 cells
+            const availableCells = totalGridCells - totalOccupiedCells;
+
+            const shouldShowOverflow = priceListSorted.length > availableCells;
+            const itemsToShow = shouldShowOverflow ? availableCells - 1 : availableCells; // -2 for overflow indicator
+
+            setShouldShowOverflow(shouldShowOverflow);
+            setItemsToShow(itemsToShow);
+            setAvailableCells(availableCells);
 
       // Position Total Value in bottom right (spans 2 columns and 2 rows)
       // Start at second-to-last column/row so it spans to the last
@@ -383,12 +417,6 @@ export default function PriceList() {
   }
 
   if (priceList) {
-    const priceListSorted = [...priceList].sort(
-      (item1, item2) =>
-        getItemsPricePerSlot(item2 as ClientItem) -
-        getItemsPricePerSlot(item1 as ClientItem)
-    );
-
     return (
       <div className="tracking-wide flex flex-col h-full">
         <audio ref={itemScannedAudioRef} id="item-added-sound" src={ScannedSound} />
@@ -417,6 +445,16 @@ export default function PriceList() {
             onBorderColorGreenChange={setBorderColorGreen}
             borderColorBlue={borderColorBlue}
             onBorderColorBlueChange={setBorderColorBlue}
+            enableMainWindowToggle={enableMainWindowToggle}
+            onEnableMainWindowToggleChange={setEnableMainWindowToggle}
+            enableDeleteLowestItem={enableDeleteLowestItem}
+            onEnableDeleteLowestItemChange={setEnableDeleteLowestItem}
+            enableDeleteLastItem={enableDeleteLastItem}
+            onEnableDeleteLastItemChange={setEnableDeleteLastItem}
+            enableIncrementLastItem={enableIncrementLastItem}
+            onEnableIncrementLastItemChange={setEnableIncrementLastItem}
+            enableScreenCalibration={enableScreenCalibration}
+            onEnableScreenCalibrationChange={setEnableScreenCalibration}
           />
         )}
         <div
@@ -424,13 +462,13 @@ export default function PriceList() {
           className="grid grid-cols-[repeat(auto-fill,minmax(70px,1fr))] grid-rows-[repeat(auto-fill,minmax(30px,1fr))] font-medium tracking-wide text-base mt-1 w-full grid-flow-col grow"
         >
           {/* Settings button in top right */}
-          <div className="flex items-center justify-center" style={{
+          <div className="flex items-center justify-end" style={{
             gridColumnStart: numCols,
             gridRowStart: 1,
           }}>
             <button
               onClick={() => setShowSettings(true)}
-              className="flex items-center justify-center hover:bg-white/20 transition-colors bg-[#444444] w-fit p-2.5 mx-auto rounded"
+              className="flex items-center justify-center hover:bg-white/20 transition-colors bg-[#444444] w-fit p-2.5 rounded"
               
               aria-label="Open settings"
             >
@@ -462,17 +500,7 @@ export default function PriceList() {
             ) : null }
           </div>
           {/* Calculate visible cells: numCols * numRows - 4 (for Total which spans 2x2, but effectively takes 4 cells) */}
-          {(() => {
-            const totalGridCells = numCols * numRows;
-            const totalOccupiedCells = 5; // Total spans 2x2 = 4 cells
-            const availableCells = totalGridCells - totalOccupiedCells;
-
-            const shouldShowOverflow = priceListSorted.length > availableCells;
-            const itemsToShow = shouldShowOverflow ? availableCells - 1 : availableCells; // -2 for overflow indicator
-
-            return (
-              <>
-                {shouldShowOverflow && (
+          {shouldShowOverflow && (
                   <div className="flex items-center max-w-full max-h-full overflow-hidden tracking-[-0.1px] odd:bg-white/10">
                     <div className="relative flex items-center gap-1 w-full h-full">
                       <div>
@@ -490,28 +518,27 @@ export default function PriceList() {
                     lastItem={i === arr.length - 1}
                   />
                 ))}
-              </>
-            );
-          })()}
           <div
-            className="flex flex-col h-full justify-center col-span-2 row-span-2 pl-2 select-none"
+            className="flex flex-col h-full justify-end items-end col-span-2 row-span-2 pl-2 select-none"
             style={{
               gridColumnStart: totalGridPosition.columnStart,
               gridRowStart: totalGridPosition.rowStart,
             }}
             ref={totalValueRef}
           >
-            <span className="uppercase text-xs font-bold">Total</span>
-            <h2 className="flex justify-center flex-col bg-white text-stone-900 px-2 rounded h-7 w-full font-['Bender']">
-              <div className="flex items-end gap-0.5">
-                <span className="font-['Nunito'] text-sm mb-1 font-black">
-                  ₽
-                </span>
-                <span className="text-xl font-black tracking-wider">
-                  <NumberFlow value={totalLootValue} />
-                </span>
-              </div>
-            </h2>
+            <div className="max-w-[140px] w-[140px]">
+              <span className="uppercase text-xs font-bold">Total</span>
+              <h2 className="flex justify-center flex-col bg-white text-stone-900 px-2 rounded h-7 w-full font-['Bender']">
+                <div className="flex items-end gap-0.5">
+                  <span className="font-['Nunito'] text-sm mb-1 font-black">
+                    ₽
+                  </span>
+                  <span className="text-xl font-black tracking-wider">
+                    <NumberFlow value={totalLootValue} />
+                  </span>
+                </div>
+              </h2>
+            </div>
           </div>
         </div>
       </div>

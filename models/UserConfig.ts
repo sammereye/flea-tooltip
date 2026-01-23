@@ -15,4 +15,9 @@ export type UserConfig = {
   borderColorRed?: number; // 0-255
   borderColorGreen?: number; // 0-255
   borderColorBlue?: number; // 0-255
+  enableMainWindowToggle?: boolean;
+  enableDeleteLowestItem?: boolean;
+  enableDeleteLastItem?: boolean;
+  enableIncrementLastItem?: boolean;
+  enableScreenCalibration?: boolean;
 };

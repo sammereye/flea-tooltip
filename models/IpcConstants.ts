@@ -24,4 +24,9 @@ export default class IpcConstants {
   static GetAllItems = "get-all-items";
   static ValidateApiKey = "validate-api-key";
   static RefetchItems = "refetch-items";
+  static ToggleMainWindow = "toggle-main-window";
+  static ToggleDeleteLowestItem = "toggle-delete-lowest-item";
+  static ToggleDeleteLastItem = "toggle-delete-last-item";
+  static ToggleIncrementLastItem = "toggle-increment-last-item";
+  static ToggleScreenCalibration = "toggle-screen-calibration";
 }

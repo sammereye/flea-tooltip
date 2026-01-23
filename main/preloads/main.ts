@@ -15,6 +15,11 @@ declare global {
       getAllItems: () => Promise<any[]>;
       validateApiKey: (apiKey: string) => Promise<boolean>;
       refetchItems: () => Promise<boolean>;
+      toggleMainWindow: (enabled: boolean) => Promise<boolean>;
+      toggleDeleteLowestItem: (enabled: boolean) => Promise<boolean>;
+      toggleDeleteLastItem: (enabled: boolean) => Promise<boolean>;
+      toggleIncrementLastItem: (enabled: boolean) => Promise<boolean>;
+      toggleScreenCalibration: (enabled: boolean) => Promise<boolean>;
     };
   }
 }
@@ -49,5 +54,20 @@ contextBridge.exposeInMainWorld("electron", {
   },
   refetchItems: () => {
     return ipcRenderer.invoke(IpcConstants.RefetchItems);
+  },
+  toggleMainWindow: (enabled: boolean) => {
+    return ipcRenderer.invoke(IpcConstants.ToggleMainWindow, enabled);
+  },
+  toggleDeleteLowestItem: (enabled: boolean) => {
+    return ipcRenderer.invoke(IpcConstants.ToggleDeleteLowestItem, enabled);
+  },
+  toggleDeleteLastItem: (enabled: boolean) => {
+    return ipcRenderer.invoke(IpcConstants.ToggleDeleteLastItem, enabled);
+  },
+  toggleIncrementLastItem: (enabled: boolean) => {
+    return ipcRenderer.invoke(IpcConstants.ToggleIncrementLastItem, enabled);
+  },
+  toggleScreenCalibration: (enabled: boolean) => {
+    return ipcRenderer.invoke(IpcConstants.ToggleScreenCalibration, enabled);
   },
 });
