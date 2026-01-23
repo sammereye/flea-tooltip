@@ -1,7 +1,7 @@
 {
   "name": "tarkov-price-tooltip",
   "productName": "tarkov-price-tooltip",
-  "version": "1.2.0",
+  "version": "1.4.0",
   "description": "In-Game Tarkov Market Checker",
   "main": "./.webpack/main",
   "scripts": {
