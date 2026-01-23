@@ -23,6 +23,16 @@ interface SettingsProps {
   onBorderColorGreenChange: (green: number) => void;
   borderColorBlue: number;
   onBorderColorBlueChange: (blue: number) => void;
+  enableMainWindowToggle: boolean;
+  onEnableMainWindowToggleChange: (enabled: boolean) => void;
+  enableDeleteLowestItem: boolean;
+  onEnableDeleteLowestItemChange: (enabled: boolean) => void;
+  enableDeleteLastItem: boolean;
+  onEnableDeleteLastItemChange: (enabled: boolean) => void;
+  enableIncrementLastItem: boolean;
+  onEnableIncrementLastItemChange: (enabled: boolean) => void;
+  enableScreenCalibration: boolean;
+  onEnableScreenCalibrationChange: (enabled: boolean) => void;
 }
 
 export default function Settings({
@@ -47,6 +57,16 @@ export default function Settings({
   onBorderColorGreenChange,
   borderColorBlue,
   onBorderColorBlueChange,
+  enableMainWindowToggle,
+  onEnableMainWindowToggleChange,
+  enableDeleteLowestItem,
+  onEnableDeleteLowestItemChange,
+  enableDeleteLastItem,
+  onEnableDeleteLastItemChange,
+  enableIncrementLastItem,
+  onEnableIncrementLastItemChange,
+  enableScreenCalibration,
+  onEnableScreenCalibrationChange,
 }: SettingsProps) {
   const [localSoundEnabled, setLocalSoundEnabled] = useState(soundEnabled);
   const [localSoundVolume, setLocalSoundVolume] = useState(soundVolume);
@@ -62,6 +82,16 @@ export default function Settings({
   const [localBorderColorRed, setLocalBorderColorRed] = useState(borderColorRed);
   const [localBorderColorGreen, setLocalBorderColorGreen] = useState(borderColorGreen);
   const [localBorderColorBlue, setLocalBorderColorBlue] = useState(borderColorBlue);
+  const [localEnableMainWindowToggle, setLocalEnableMainWindowToggle] =
+    useState(enableMainWindowToggle);
+  const [localEnableDeleteLowestItem, setLocalEnableDeleteLowestItem] =
+    useState(enableDeleteLowestItem);
+  const [localEnableDeleteLastItem, setLocalEnableDeleteLastItem] =
+    useState(enableDeleteLastItem);
+  const [localEnableIncrementLastItem, setLocalEnableIncrementLastItem] =
+    useState(enableIncrementLastItem);
+  const [localEnableScreenCalibration, setLocalEnableScreenCalibration] =
+    useState(enableScreenCalibration);
   const [isValidatingApiKey, setIsValidatingApiKey] = useState(false);
   const [apiKeyValidationMessage, setApiKeyValidationMessage] = useState("");
   const [showHelp, setShowHelp] = useState(false);
@@ -105,6 +135,26 @@ export default function Settings({
   useEffect(() => {
     setLocalBorderColorBlue(borderColorBlue);
   }, [borderColorBlue]);
+
+  useEffect(() => {
+    setLocalEnableMainWindowToggle(enableMainWindowToggle);
+  }, [enableMainWindowToggle]);
+
+  useEffect(() => {
+    setLocalEnableDeleteLowestItem(enableDeleteLowestItem);
+  }, [enableDeleteLowestItem]);
+
+  useEffect(() => {
+    setLocalEnableDeleteLastItem(enableDeleteLastItem);
+  }, [enableDeleteLastItem]);
+
+  useEffect(() => {
+    setLocalEnableIncrementLastItem(enableIncrementLastItem);
+  }, [enableIncrementLastItem]);
+
+  useEffect(() => {
+    setLocalEnableScreenCalibration(enableScreenCalibration);
+  }, [enableScreenCalibration]);
 
   const handleSoundToggle = async (enabled: boolean) => {
     setLocalSoundEnabled(enabled);
@@ -311,9 +361,69 @@ export default function Settings({
     }
   };
 
+  const handleMainWindowToggle = async (enabled: boolean) => {
+    setLocalEnableMainWindowToggle(enabled);
+    onEnableMainWindowToggleChange(enabled);
+
+    // Save to user config and toggle hotkey
+    try {
+      await window.electron.toggleMainWindow(enabled);
+    } catch (error) {
+      console.error("Failed to toggle main window hotkey:", error);
+    }
+  };
+
+  const handleDeleteLowestItemToggle = async (enabled: boolean) => {
+    setLocalEnableDeleteLowestItem(enabled);
+    onEnableDeleteLowestItemChange(enabled);
+
+    // Save to user config and toggle hotkey
+    try {
+      await window.electron.toggleDeleteLowestItem(enabled);
+    } catch (error) {
+      console.error("Failed to toggle delete lowest item hotkey:", error);
+    }
+  };
+
+  const handleDeleteLastItemToggle = async (enabled: boolean) => {
+    setLocalEnableDeleteLastItem(enabled);
+    onEnableDeleteLastItemChange(enabled);
+
+    // Save to user config and toggle hotkey
+    try {
+      await window.electron.toggleDeleteLastItem(enabled);
+    } catch (error) {
+      console.error("Failed to toggle delete last item hotkey:", error);
+    }
+  };
+
+  const handleIncrementLastItemToggle = async (enabled: boolean) => {
+    setLocalEnableIncrementLastItem(enabled);
+    onEnableIncrementLastItemChange(enabled);
+
+    // Save to user config and toggle hotkey
+    try {
+      await window.electron.toggleIncrementLastItem(enabled);
+    } catch (error) {
+      console.error("Failed to toggle increment last item hotkey:", error);
+    }
+  };
+
+  const handleScreenCalibrationToggle = async (enabled: boolean) => {
+    setLocalEnableScreenCalibration(enabled);
+    onEnableScreenCalibrationChange(enabled);
+
+    // Save to user config and toggle hotkey
+    try {
+      await window.electron.toggleScreenCalibration(enabled);
+    } catch (error) {
+      console.error("Failed to toggle screen calibration hotkey:", error);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-stone-900/95 z-50 flex justify-center overflow-y-auto max-h-screen py-4">
-      <div className="bg-stone-800 rounded-lg p-6 max-w-md w-full mx-4 h-fit">
+      <div className="bg-stone-800 rounded-lg p-4 max-w-md w-full mx-4 h-fit">
         <div className="flex justify-between items-center mb-2">
           <h2 className="text-xl font-bold text-white">Settings</h2>
           <div className="flex items-center gap-2">
@@ -679,6 +789,159 @@ export default function Settings({
                     className="w-full px-3 py-2 bg-stone-700 border border-stone-600 rounded-md text-white placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Hotkey Toggles */}
+            <div className="space-y-3">
+              {/* Main Window Toggle (F1) */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <label
+                    htmlFor="mainwindow-toggle"
+                    className="text-sm font-medium cursor-pointer"
+                  >
+                    Main Window Toggle (F1)
+                  </label>
+                  <p className="text-xs text-stone-400">
+                    Toggle main window visibility
+                  </p>
+                </div>
+                <button
+                  id="mainwindow-toggle"
+                  onClick={() => handleMainWindowToggle(!localEnableMainWindowToggle)}
+                  className={`relative inline-flex h-5 w-10 min-w-10 items-center rounded-full transition-colors ${
+                    localEnableMainWindowToggle ? "bg-green-500" : "bg-stone-600"
+                  }`}
+                  role="switch"
+                  aria-checked={localEnableMainWindowToggle}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      localEnableMainWindowToggle ? "translate-x-[22px]" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Delete Lowest Item (F2) */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <label
+                    htmlFor="deletelowest-toggle"
+                    className="text-sm font-medium cursor-pointer"
+                  >
+                    Delete Lowest Item (F2)
+                  </label>
+                  <p className="text-xs text-stone-400">
+                    Delete the lowest value item from the list
+                  </p>
+                </div>
+                <button
+                  id="deletelowest-toggle"
+                  onClick={() => handleDeleteLowestItemToggle(!localEnableDeleteLowestItem)}
+                  className={`relative inline-flex h-5 w-10 min-w-10 items-center rounded-full transition-colors ${
+                    localEnableDeleteLowestItem ? "bg-green-500" : "bg-stone-600"
+                  }`}
+                  role="switch"
+                  aria-checked={localEnableDeleteLowestItem}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      localEnableDeleteLowestItem ? "translate-x-[22px]" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Delete Last Item (F3) */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <label
+                    htmlFor="deletelast-toggle"
+                    className="text-sm font-medium cursor-pointer"
+                  >
+                    Delete Last Item (F3)
+                  </label>
+                  <p className="text-xs text-stone-400">
+                    Delete the most recently scanned item
+                  </p>
+                </div>
+                <button
+                  id="deletelast-toggle"
+                  onClick={() => handleDeleteLastItemToggle(!localEnableDeleteLastItem)}
+                  className={`relative inline-flex h-5 w-10 min-w-10 items-center rounded-full transition-colors ${
+                    localEnableDeleteLastItem ? "bg-green-500" : "bg-stone-600"
+                  }`}
+                  role="switch"
+                  aria-checked={localEnableDeleteLastItem}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      localEnableDeleteLastItem ? "translate-x-[22px]" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Increment Last Item (F4) */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <label
+                    htmlFor="incrementlast-toggle"
+                    className="text-sm font-medium cursor-pointer"
+                  >
+                    Increment Last Item (F4)
+                  </label>
+                  <p className="text-xs text-stone-400">
+                    Add +1 to the most recently scanned item count
+                  </p>
+                </div>
+                <button
+                  id="incrementlast-toggle"
+                  onClick={() => handleIncrementLastItemToggle(!localEnableIncrementLastItem)}
+                  className={`relative inline-flex h-5 w-10 min-w-10 items-center rounded-full transition-colors ${
+                    localEnableIncrementLastItem ? "bg-green-500" : "bg-stone-600"
+                  }`}
+                  role="switch"
+                  aria-checked={localEnableIncrementLastItem}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      localEnableIncrementLastItem ? "translate-x-[22px]" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Screen Calibration (F6) */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <label
+                    htmlFor="screencalibration-toggle"
+                    className="text-sm font-medium cursor-pointer"
+                  >
+                    Screen Calibration (F6)
+                  </label>
+                  <p className="text-xs text-stone-400">
+                    Start the scanning calibration process
+                  </p>
+                </div>
+                <button
+                  id="screencalibration-toggle"
+                  onClick={() => handleScreenCalibrationToggle(!localEnableScreenCalibration)}
+                  className={`relative inline-flex h-5 w-10 min-w-10 items-center rounded-full transition-colors ${
+                    localEnableScreenCalibration ? "bg-green-500" : "bg-stone-600"
+                  }`}
+                  role="switch"
+                  aria-checked={localEnableScreenCalibration}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      localEnableScreenCalibration ? "translate-x-[22px]" : "translate-x-1"
+                    }`}
+                  />
+                </button>
               </div>
             </div>
           </div>

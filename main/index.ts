@@ -21,16 +21,213 @@ import fs from "fs";
 import { getUserConfigData, setUserConfigData } from "./services/config";
 import { UserConfig } from "../models/UserConfig";
 
+// Hotkey registration functions
+function registerHotkeys(userConfig: UserConfig) {
+  // F1 - Main Window Toggle
+  if (userConfig.enableMainWindowToggle !== false) {
+    // Default to true if not set
+    globalShortcut.register("F1", () => {
+      console.log("Toggling main window visibility");
+      console.log(BrowserWindow.getAllWindows()[0].isVisible());
+      if (BrowserWindow.getAllWindows()[0].isVisible()) {
+        BrowserWindow.getAllWindows()[0].hide();
+      } else {
+        BrowserWindow.getAllWindows()[0].show();
+      }
+    });
+  }
+
+  // F2 - Delete Lowest Item
+  if (userConfig.enableDeleteLowestItem !== false) {
+    // Default to true if not set
+    globalShortcut.register("F2", () => {
+      BrowserWindow.getAllWindows()[0].webContents.send(
+        IpcConstants.DeleteItem
+      );
+    });
+  }
+
+  // F3 - Delete Last Item
+  if (userConfig.enableDeleteLastItem !== false) {
+    // Default to true if not set
+    globalShortcut.register("F3", () => {
+      BrowserWindow.getAllWindows()[0].webContents.send(
+        IpcConstants.DeleteLastItem
+      );
+    });
+  }
+
+  // F4 - Increment Last Item
+  if (userConfig.enableIncrementLastItem !== false) {
+    // Default to true if not set
+    globalShortcut.register("F4", () => {
+      BrowserWindow.getAllWindows()[0].webContents.send(
+        IpcConstants.AddToItemCount
+      );
+    });
+  }
+
+  // F6 - Screen Calibration
+  if (userConfig.enableScreenCalibration !== false) {
+    // Default to true if not set
+    globalShortcut.register("F6", () => {
+      console.log("On step ", screenConfigureStep);
+      if (!BrowserWindow.getAllWindows()[0].isVisible()) {
+        BrowserWindow.getAllWindows()[0].show();
+      }
+
+      if (screenConfigureStep === 0) {
+        const startTime = Date.now();
+        const redValue = userConfig.borderColorRed ?? 82;
+        const greenValue = userConfig.borderColorGreen ?? 89;
+        const blueValue = userConfig.borderColorBlue ?? 90;
+        console.log(
+          "Starting screen configure with values:",
+          redValue,
+          greenValue,
+          blueValue
+        );
+        BrowserWindow.getAllWindows()[0].webContents.send(
+          IpcConstants.StartScreenConfigure
+        );
+        BrowserWindow.getAllWindows()[0].webContents.send(
+          IpcConstants.DisableScreenConfigureNeeded
+        );
+        screenConfigureStep = 1;
+        // Get RGB border color values from config
+
+        screenConfigureProcess = isDev()
+          ? spawn(
+              path.join(app.getAppPath(), "/lib/ocr/configure_screen.exe"),
+              [redValue.toString(), greenValue.toString(), blueValue.toString()]
+              // {
+              //   detached: true,
+              //   shell: true,
+              // }
+            )
+          : spawn(
+              path.join(process.resourcesPath, "/ocr/configure_screen.exe"),
+              [redValue.toString(), greenValue.toString(), blueValue.toString()]
+            );
+
+        screenConfigureProcess.stdout.setEncoding("utf-8");
+        screenConfigureProcess.stdout.on("data", function (data) {
+          console.log("Screen configure stderr data:", data.toString());
+          isDev()
+            ? console.log("stderr: " + data)
+            : log.error("stderr: " + data);
+
+          if (
+            data.toString().includes("Searching") &&
+            screenConfigureStep === 3
+          ) {
+            screenConfigureStep = 4;
+            BrowserWindow.getAllWindows()[0].webContents.send(
+              IpcConstants.ScreenConfigureScanningSingleRow
+            );
+          }
+
+          if (
+            data.toString().includes("RESULT||") &&
+            screenConfigureStep === 4
+          ) {
+            screenConfigureStep = 5;
+            BrowserWindow.getAllWindows()[0].webContents.send(
+              IpcConstants.ScreenConfigureScanComplete
+            );
+
+            const configData = data
+              .toString()
+              .replace("RESULT||", "")
+              .split("||");
+            const offsetX = configData[0];
+            const offsetY = configData[1];
+            const formattedConfigData = {
+              offsetX: parseInt(offsetX),
+              offsetY: parseInt(offsetY),
+            };
+
+            fs.writeFileSync(
+              isDev()
+                ? path.join(app.getAppPath(), "/lib/ocr/scanningConfig.json")
+                : path.join(process.resourcesPath, "/ocr/scanningConfig.json"),
+              JSON.stringify(formattedConfigData)
+            );
+          }
+        });
+
+        screenConfigureProcess.on("close", function (code) {
+          console.log("Screen configure process closed with code:", code);
+          if (screenConfigureStep !== 5) {
+            BrowserWindow.getAllWindows()[0].webContents.send(
+              IpcConstants.EndScreenConfigure
+            );
+          }
+          screenConfigureStep = 0;
+          screenConfigureProcess = null;
+        });
+
+        if (typeof screenConfigureProcess.pid !== "number") {
+          console.error("Error: Failed to spawn subprocess. PID is undefined.");
+          BrowserWindow.getAllWindows()[0].webContents.send(
+            IpcConstants.ScreenConfigureFailed
+          );
+          // Throw an error or handle the failure
+        } else {
+          console.log(
+            `Spawned subprocess correctly with PID: ${screenConfigureProcess.pid}`
+          );
+
+          const timeToWait = 1000 - (Date.now() - startTime);
+
+          setTimeout(
+            () => {
+              console.log("Screen configure step 1 complete");
+              screenConfigureStep = 2;
+              BrowserWindow.getAllWindows()[0].webContents.send(
+                IpcConstants.ScreenConfigureStarted
+              );
+            },
+            timeToWait > 0 ? timeToWait : 0
+          );
+        }
+      }
+
+      if (screenConfigureStep === 2 && screenConfigureProcess) {
+        console.log("Advancing to step 3, searching for single row dimensions");
+        screenConfigureStep = 3;
+        screenConfigureProcess.stdin.write("NEXT\n");
+      }
+    });
+  }
+
+  // F12 - Dev Tools (always registered)
+  globalShortcut.register("F12", () => {
+    BrowserWindow.getAllWindows()[0].webContents.openDevTools();
+  });
+}
+
+function unregisterHotkeys() {
+  globalShortcut.unregister("F1");
+  globalShortcut.unregister("F2");
+  globalShortcut.unregister("F3");
+  globalShortcut.unregister("F4");
+  globalShortcut.unregister("F6");
+  // Keep F12 registered for dev tools
+}
+
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
+
+// Global variables for screen configuration
+let screenConfigureStep: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 = 0;
+let screenConfigureProcess: ChildProcessWithoutNullStreams | null = null;
 
 try {
   // This allows TypeScript to pick up the magic constants that's auto-generated by Forge's Webpack
   // plugin that tells the Electron app where to look for the Webpack-bundled app code (depending on
   // whether you're running in development or production).
   let items: Items;
-  let screenConfigureStep: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 = 0;
-  let screenConfigureProcess: ChildProcessWithoutNullStreams | null = null;
   let tooltipWindow: TooltipWindow | null = null;
   let ocr: OCRProcess | null = null;
 
@@ -233,164 +430,9 @@ try {
     // tray.setToolTip("Tarkov Price Checker");
     // tray.setContextMenu(contextMenu);
 
-    globalShortcut.register("F1", () => {
-      console.log("Toggling main window visibility");
-      console.log(BrowserWindow.getAllWindows()[0].isVisible());
-      if (BrowserWindow.getAllWindows()[0].isVisible()) {
-        BrowserWindow.getAllWindows()[0].hide();
-      } else {
-        BrowserWindow.getAllWindows()[0].show();
-      }
-    });
-
-    globalShortcut.register("F2", () => {
-      BrowserWindow.getAllWindows()[0].webContents.send(
-        IpcConstants.DeleteItem
-      );
-    });
-
-    globalShortcut.register("F3", () => {
-      BrowserWindow.getAllWindows()[0].webContents.send(
-        IpcConstants.DeleteLastItem
-      );
-    });
-
-    globalShortcut.register("F4", () => {
-      BrowserWindow.getAllWindows()[0].webContents.send(
-        IpcConstants.AddToItemCount
-      );
-    });
-
-    globalShortcut.register("F6", () => {
-      console.log("On step ", screenConfigureStep);
-      if (!BrowserWindow.getAllWindows()[0].isVisible()) {
-        BrowserWindow.getAllWindows()[0].show();
-      }
-
-      if (screenConfigureStep === 0) {
-        const startTime = Date.now();
-        const userConfig = getUserConfigData();
-        const redValue = userConfig.borderColorRed ?? 82;
-        const greenValue = userConfig.borderColorGreen ?? 89;
-        const blueValue = userConfig.borderColorBlue ?? 90;
-        console.log("Starting screen configure with values:", redValue, greenValue, blueValue);
-        BrowserWindow.getAllWindows()[0].webContents.send(
-          IpcConstants.StartScreenConfigure
-        );
-        BrowserWindow.getAllWindows()[0].webContents.send(
-          IpcConstants.DisableScreenConfigureNeeded
-        );
-        screenConfigureStep = 1;
-        // Get RGB border color values from config
-        
-
-        screenConfigureProcess = isDev()
-          ? spawn(
-              path.join(app.getAppPath(), "/lib/ocr/configure_screen.exe"),
-              [redValue.toString(), greenValue.toString(), blueValue.toString()]
-              // {
-              //   detached: true,
-              //   shell: true,
-              // }
-            )
-          : spawn(
-              path.join(process.resourcesPath, "/ocr/configure_screen.exe"),
-              [redValue.toString(), greenValue.toString(), blueValue.toString()]
-            );
-
-        screenConfigureProcess.stdout.setEncoding("utf-8");
-        screenConfigureProcess.stdout.on("data", function (data) {
-          console.log("Screen configure stderr data:", data.toString());
-          isDev()
-            ? console.log("stderr: " + data)
-            : log.error("stderr: " + data);
-
-          if (
-            data.toString().includes("Searching") &&
-            screenConfigureStep === 3
-          ) {
-            screenConfigureStep = 4;
-            BrowserWindow.getAllWindows()[0].webContents.send(
-              IpcConstants.ScreenConfigureScanningSingleRow
-            );
-          }
-
-          if (
-            data.toString().includes("RESULT||") &&
-            screenConfigureStep === 4
-          ) {
-            screenConfigureStep = 5;
-            BrowserWindow.getAllWindows()[0].webContents.send(
-              IpcConstants.ScreenConfigureScanComplete
-            );
-
-            const configData = data
-              .toString()
-              .replace("RESULT||", "")
-              .split("||");
-            const offsetX = configData[0];
-            const offsetY = configData[1];
-            const formattedConfigData = {
-              offsetX: parseInt(offsetX),
-              offsetY: parseInt(offsetY),
-            };
-
-            fs.writeFileSync(
-              isDev()
-                ? path.join(app.getAppPath(), "/lib/ocr/scanningConfig.json")
-                : path.join(process.resourcesPath, "/ocr/scanningConfig.json"),
-              JSON.stringify(formattedConfigData)
-            );
-          }
-        });
-
-        screenConfigureProcess.on("close", function (code) {
-          console.log("Screen configure process closed with code:", code);
-          if (screenConfigureStep !== 5) {
-            BrowserWindow.getAllWindows()[0].webContents.send(
-              IpcConstants.EndScreenConfigure
-            );
-          }
-          screenConfigureStep = 0;
-          screenConfigureProcess = null;
-        });
-
-        if (typeof screenConfigureProcess.pid !== "number") {
-          console.error("Error: Failed to spawn subprocess. PID is undefined.");
-          BrowserWindow.getAllWindows()[0].webContents.send(
-            IpcConstants.ScreenConfigureFailed
-          );
-          // Throw an error or handle the failure
-        } else {
-          console.log(
-            `Spawned subprocess correctly with PID: ${screenConfigureProcess.pid}`
-          );
-
-          const timeToWait = 1000 - (Date.now() - startTime);
-
-          setTimeout(
-            () => {
-              console.log("Screen configure step 1 complete");
-              screenConfigureStep = 2;
-              BrowserWindow.getAllWindows()[0].webContents.send(
-                IpcConstants.ScreenConfigureStarted
-              );
-            },
-            timeToWait > 0 ? timeToWait : 0
-          );
-        }
-      }
-
-      if (screenConfigureStep === 2 && screenConfigureProcess) {
-        console.log("Advancing to step 3, searching for single row dimensions");
-        screenConfigureStep = 3;
-        screenConfigureProcess.stdin.write("NEXT\n");
-      }
-    });
-
-    globalShortcut.register("F12", () => {
-      BrowserWindow.getAllWindows()[0].webContents.openDevTools();
-    });
+    // Register hotkeys based on user config
+    const hotkeyUserConfig = getUserConfigData();
+    registerHotkeys(hotkeyUserConfig);
 
     // IPC handlers for user config
     ipcMain.handle(IpcConstants.GetUserConfig, () => {
@@ -404,26 +446,29 @@ try {
       return [];
     });
 
-    ipcMain.handle(IpcConstants.ValidateApiKey, async (_event, apiKey: string) => {
-      try {
-        const response = await fetch(
-          "https://api.tarkov-market.app/api/v1/items/all",
-          {
-            method: "GET",
-            headers: {
-              Accept: "application/json",
-              "Content-Type": "application/json",
-              "x-api-key": apiKey,
-            },
-          }
-        );
+    ipcMain.handle(
+      IpcConstants.ValidateApiKey,
+      async (_event, apiKey: string) => {
+        try {
+          const response = await fetch(
+            "https://api.tarkov-market.app/api/v1/items/all",
+            {
+              method: "GET",
+              headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+                "x-api-key": apiKey,
+              },
+            }
+          );
 
-        return response.status === 200 || response.status === 204;
-      } catch (error) {
-        console.error("API key validation failed:", error);
-        return false;
+          return response.status === 200 || response.status === 204;
+        } catch (error) {
+          console.error("API key validation failed:", error);
+          return false;
+        }
       }
-    });
+    );
 
     ipcMain.handle(IpcConstants.RefetchItems, async () => {
       try {
@@ -508,6 +553,264 @@ try {
 
         const userConfig: UserConfig = getUserConfigData();
         userConfig.enableAlwaysOnTop = enabled;
+        setUserConfigData(userConfig);
+
+        return true;
+      }
+    );
+
+    // IPC handlers for hotkey toggles
+    ipcMain.handle(
+      IpcConstants.ToggleMainWindow,
+      async (_event, enabled: boolean) => {
+        if (enabled) {
+          globalShortcut.register("F1", () => {
+            console.log("Toggling main window visibility");
+            if (BrowserWindow.getAllWindows()[0].isVisible()) {
+              BrowserWindow.getAllWindows()[0].hide();
+            } else {
+              BrowserWindow.getAllWindows()[0].show();
+            }
+          });
+        } else {
+          globalShortcut.unregister("F1");
+        }
+
+        const userConfig: UserConfig = getUserConfigData();
+        userConfig.enableMainWindowToggle = enabled;
+        setUserConfigData(userConfig);
+
+        return true;
+      }
+    );
+
+    ipcMain.handle(
+      IpcConstants.ToggleDeleteLowestItem,
+      async (_event, enabled: boolean) => {
+        if (enabled) {
+          globalShortcut.register("F2", () => {
+            BrowserWindow.getAllWindows()[0].webContents.send(
+              IpcConstants.DeleteItem
+            );
+          });
+        } else {
+          globalShortcut.unregister("F2");
+        }
+
+        const userConfig: UserConfig = getUserConfigData();
+        userConfig.enableDeleteLowestItem = enabled;
+        setUserConfigData(userConfig);
+
+        return true;
+      }
+    );
+
+    ipcMain.handle(
+      IpcConstants.ToggleDeleteLastItem,
+      async (_event, enabled: boolean) => {
+        if (enabled) {
+          globalShortcut.register("F3", () => {
+            BrowserWindow.getAllWindows()[0].webContents.send(
+              IpcConstants.DeleteLastItem
+            );
+          });
+        } else {
+          globalShortcut.unregister("F3");
+        }
+
+        const userConfig: UserConfig = getUserConfigData();
+        userConfig.enableDeleteLastItem = enabled;
+        setUserConfigData(userConfig);
+
+        return true;
+      }
+    );
+
+    ipcMain.handle(
+      IpcConstants.ToggleIncrementLastItem,
+      async (_event, enabled: boolean) => {
+        if (enabled) {
+          globalShortcut.register("F4", () => {
+            BrowserWindow.getAllWindows()[0].webContents.send(
+              IpcConstants.AddToItemCount
+            );
+          });
+        } else {
+          globalShortcut.unregister("F4");
+        }
+
+        const userConfig: UserConfig = getUserConfigData();
+        userConfig.enableIncrementLastItem = enabled;
+        setUserConfigData(userConfig);
+
+        return true;
+      }
+    );
+
+    ipcMain.handle(
+      IpcConstants.ToggleScreenCalibration,
+      async (_event, enabled: boolean) => {
+        if (enabled) {
+          globalShortcut.register("F6", () => {
+            console.log("On step ", screenConfigureStep);
+            if (!BrowserWindow.getAllWindows()[0].isVisible()) {
+              BrowserWindow.getAllWindows()[0].show();
+            }
+
+            if (screenConfigureStep === 0) {
+              const startTime = Date.now();
+              const userConfig = getUserConfigData();
+              const redValue = userConfig.borderColorRed ?? 82;
+              const greenValue = userConfig.borderColorGreen ?? 89;
+              const blueValue = userConfig.borderColorBlue ?? 90;
+              console.log(
+                "Starting screen configure with values:",
+                redValue,
+                greenValue,
+                blueValue
+              );
+              BrowserWindow.getAllWindows()[0].webContents.send(
+                IpcConstants.StartScreenConfigure
+              );
+              BrowserWindow.getAllWindows()[0].webContents.send(
+                IpcConstants.DisableScreenConfigureNeeded
+              );
+              screenConfigureStep = 1;
+              // Get RGB border color values from config
+
+              screenConfigureProcess = isDev()
+                ? spawn(
+                    path.join(
+                      app.getAppPath(),
+                      "/lib/ocr/configure_screen.exe"
+                    ),
+                    [
+                      redValue.toString(),
+                      greenValue.toString(),
+                      blueValue.toString(),
+                    ]
+                    // {
+                    //   detached: true,
+                    //   shell: true,
+                    // }
+                  )
+                : spawn(
+                    path.join(
+                      process.resourcesPath,
+                      "/ocr/configure_screen.exe"
+                    ),
+                    [
+                      redValue.toString(),
+                      greenValue.toString(),
+                      blueValue.toString(),
+                    ]
+                  );
+
+              screenConfigureProcess.stdout.setEncoding("utf-8");
+              screenConfigureProcess.stdout.on("data", function (data) {
+                console.log("Screen configure stderr data:", data.toString());
+                isDev()
+                  ? console.log("stderr: " + data)
+                  : log.error("stderr: " + data);
+
+                if (
+                  data.toString().includes("Searching") &&
+                  screenConfigureStep === 3
+                ) {
+                  screenConfigureStep = 4;
+                  BrowserWindow.getAllWindows()[0].webContents.send(
+                    IpcConstants.ScreenConfigureScanningSingleRow
+                  );
+                }
+
+                if (
+                  data.toString().includes("RESULT||") &&
+                  screenConfigureStep === 4
+                ) {
+                  screenConfigureStep = 5;
+                  BrowserWindow.getAllWindows()[0].webContents.send(
+                    IpcConstants.ScreenConfigureScanComplete
+                  );
+
+                  const configData = data
+                    .toString()
+                    .replace("RESULT||", "")
+                    .split("||");
+                  const offsetX = configData[0];
+                  const offsetY = configData[1];
+                  const formattedConfigData = {
+                    offsetX: parseInt(offsetX),
+                    offsetY: parseInt(offsetY),
+                  };
+
+                  fs.writeFileSync(
+                    isDev()
+                      ? path.join(
+                          app.getAppPath(),
+                          "/lib/ocr/scanningConfig.json"
+                        )
+                      : path.join(
+                          process.resourcesPath,
+                          "/ocr/scanningConfig.json"
+                        ),
+                    JSON.stringify(formattedConfigData)
+                  );
+                }
+              });
+
+              screenConfigureProcess.on("close", function (code) {
+                console.log("Screen configure process closed with code:", code);
+                if (screenConfigureStep !== 5) {
+                  BrowserWindow.getAllWindows()[0].webContents.send(
+                    IpcConstants.EndScreenConfigure
+                  );
+                }
+                screenConfigureStep = 0;
+                screenConfigureProcess = null;
+              });
+
+              if (typeof screenConfigureProcess.pid !== "number") {
+                console.error(
+                  "Error: Failed to spawn subprocess. PID is undefined."
+                );
+                BrowserWindow.getAllWindows()[0].webContents.send(
+                  IpcConstants.ScreenConfigureFailed
+                );
+                // Throw an error or handle the failure
+              } else {
+                console.log(
+                  `Spawned subprocess correctly with PID: ${screenConfigureProcess.pid}`
+                );
+
+                const timeToWait = 1000 - (Date.now() - startTime);
+
+                setTimeout(
+                  () => {
+                    console.log("Screen configure step 1 complete");
+                    screenConfigureStep = 2;
+                    BrowserWindow.getAllWindows()[0].webContents.send(
+                      IpcConstants.ScreenConfigureStarted
+                    );
+                  },
+                  timeToWait > 0 ? timeToWait : 0
+                );
+              }
+            }
+
+            if (screenConfigureStep === 2 && screenConfigureProcess) {
+              console.log(
+                "Advancing to step 3, searching for single row dimensions"
+              );
+              screenConfigureStep = 3;
+              screenConfigureProcess.stdin.write("NEXT\n");
+            }
+          });
+        } else {
+          globalShortcut.unregister("F6");
+        }
+
+        const userConfig: UserConfig = getUserConfigData();
+        userConfig.enableScreenCalibration = enabled;
         setUserConfigData(userConfig);
 
         return true;
