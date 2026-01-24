@@ -41,8 +41,8 @@ static void LoopThroughPixels(LONG *endOffsetX, LONG *endOffsetY) {
     short red = 0;
     short green = 0;
     short blue = 0;
-    LONG xRange = 20L;
-    LONG yRange = 20L;
+    LONG xRange = 40L;
+    LONG yRange = 40L;
     LONG xOffsetStarting = 8L;
     LONG yOffsetStarting = -8L;
     POINT lowestPoint{};

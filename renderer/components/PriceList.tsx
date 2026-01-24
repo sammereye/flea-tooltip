@@ -459,7 +459,7 @@ export default function PriceList() {
         )}
         <div
           ref={gridRef}
-          className="grid grid-cols-[repeat(auto-fill,minmax(70px,1fr))] grid-rows-[repeat(auto-fill,minmax(30px,1fr))] font-medium tracking-wide text-base mt-1 w-full grid-flow-col grow"
+          className="grid grid-cols-[repeat(auto-fill,minmax(70px,1fr))] grid-rows-[repeat(auto-fill,minmax(30px,1fr))] font-medium tracking-wide text-base mt-1 w-full grid-flow-col grow max-h-[94vh]"
         >
           {/* Settings button in top right */}
           <div className="flex items-center justify-end" style={{
