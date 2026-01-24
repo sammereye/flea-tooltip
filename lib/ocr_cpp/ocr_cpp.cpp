@@ -8,6 +8,8 @@
 #include <leptonica/allheaders.h>
 #include <chrono>
 #include <windows.h>
+#include <shellscalingapi.h>
+#pragma comment(lib, "Shcore.lib")
 #include <thread>
 #include <stdio.h>
 #include <algorithm>
@@ -118,12 +120,12 @@ static bool pixelIsBorderColor(short& red, short& green, short& blue) {
 }
 
 // Capture a pixel region to buffer for fast access (optimization #1)
-static void capturePixelRegion(HDC dc, int x, int y, int width, int height, bool forceRecapture = false) {
+static bool capturePixelRegion(HDC dc, int x, int y, int width, int height, bool forceRecapture = false) {
 	// Check if we need to recapture (only skip if same region and not forced)
 	if (!forceRecapture && cachedPixelBuffer.x == x && cachedPixelBuffer.y == y && 
 		cachedPixelBuffer.width == width && cachedPixelBuffer.height == height &&
 		!cachedPixelBuffer.pixels.empty()) {
-		return; // Already have this region cached
+		return true; // Already have this region cached
 	}
 
 	cachedPixelBuffer.x = x;
@@ -137,14 +139,49 @@ static void capturePixelRegion(HDC dc, int x, int y, int width, int height, bool
 	cachedPixelBuffer.pixels.resize(data_size);
 
 	HDC MemDC = GetDC(nullptr);
+	if (MemDC == NULL) {
+		cerr << "ERROR: Failed to get memory device context" << endl;
+		cachedPixelBuffer.pixels.clear();
+		return false;
+	}
+
 	HDC SDC = CreateCompatibleDC(MemDC);
+	if (SDC == NULL) {
+		cerr << "ERROR: Failed to create compatible DC" << endl;
+		ReleaseDC(nullptr, MemDC);
+		cachedPixelBuffer.pixels.clear();
+		return false;
+	}
+
 	HBITMAP hSBmp = CreateCompatibleBitmap(MemDC, width, height);
+	if (hSBmp == NULL) {
+		cerr << "ERROR: Failed to create compatible bitmap" << endl;
+		DeleteDC(SDC);
+		ReleaseDC(nullptr, MemDC);
+		cachedPixelBuffer.pixels.clear();
+		return false;
+	}
+
 	DeleteObject(SelectObject(SDC, hSBmp));
 
-	BitBlt(SDC, 0, 0, width, height, dc, x, y, SRCCOPY);
+	if (!BitBlt(SDC, 0, 0, width, height, dc, x, y, SRCCOPY)) {
+		cerr << "ERROR: BitBlt failed during pixel capture" << endl;
+		DeleteDC(SDC);
+		DeleteObject(hSBmp);
+		ReleaseDC(nullptr, MemDC);
+		cachedPixelBuffer.pixels.clear();
+		return false;
+	}
 
 	BITMAPINFO Info = { sizeof(BITMAPINFOHEADER), static_cast<long>(width), static_cast<long>(height), 1, 32, BI_RGB, data_size, 0, 0, 0, 0 };
-	GetDIBits(SDC, hSBmp, 0, height, cachedPixelBuffer.pixels.data(), &Info, DIB_RGB_COLORS);
+	if (GetDIBits(SDC, hSBmp, 0, height, cachedPixelBuffer.pixels.data(), &Info, DIB_RGB_COLORS) == 0) {
+		cerr << "ERROR: GetDIBits failed during pixel capture" << endl;
+		DeleteDC(SDC);
+		DeleteObject(hSBmp);
+		ReleaseDC(nullptr, MemDC);
+		cachedPixelBuffer.pixels.clear();
+		return false;
+	}
 
 	// Flip the image (Windows bitmaps are bottom-up)
 	unsigned long Chunk = cachedPixelBuffer.bytesPerScanLine;
@@ -162,6 +199,7 @@ static void capturePixelRegion(HDC dc, int x, int y, int width, int height, bool
 	DeleteDC(SDC);
 	DeleteObject(hSBmp);
 	ReleaseDC(nullptr, MemDC);
+	return true;
 }
 
 // Read pixel from cached buffer (optimization #1)
@@ -201,6 +239,10 @@ static bool pixelIsValid(short startingX, short startingY, short& red, short& gr
 	// Fallback to GetPixel if not in cache (shouldn't happen with proper caching)
 	if (cachedDesktopDC) {
 		COLORREF color = GetPixel(cachedDesktopDC, x, y);
+		if (color == CLR_INVALID) {
+			// GetPixel failed - could be due to hardware acceleration or other issues
+			return false;
+		}
 		red = GetRValue(color);
 		green = GetGValue(color);
 		blue = GetBValue(color);
@@ -271,6 +313,9 @@ static void rtrim(std::string& s) {
 
 int main(int argc, char* argv[])
 {
+	// Set DPI awareness to ensure cursor coordinates match actual screen pixels
+	SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
+
 	// Parse optional command line arguments for border color: red green blue
 	if (argc >= 4) {
 		try {
