@@ -23,6 +23,27 @@ static short borderColorRed = 82;
 static short borderColorGreen = 89;
 static short borderColorBlue = 90;
 
+// Pre-compiled regex patterns for performance
+static const std::regex regexNewlineCRLF("\r\n");
+static const std::regex regexNewlineLF("\n");
+static const std::regex regexAtSymbol("@");
+
+// Cached desktop DC (optimization #2)
+static HDC cachedDesktopDC = NULL;
+static HWND cachedDesktopWindow = NULL;
+
+// Pixel buffer cache for batch reading (optimization #1)
+struct PixelBuffer {
+	vector<uint8_t> pixels;
+	int x, y, width, height;
+	int bytesPerPixel;
+	int bytesPerScanLine;
+	
+	PixelBuffer() : x(0), y(0), width(0), height(0), bytesPerPixel(4), bytesPerScanLine(0) {}
+};
+
+static PixelBuffer cachedPixelBuffer;
+
 class Image
 {
 private:
@@ -96,31 +117,103 @@ static bool pixelIsBorderColor(short& red, short& green, short& blue) {
 	return false;
 }
 
+// Capture a pixel region to buffer for fast access (optimization #1)
+static void capturePixelRegion(HDC dc, int x, int y, int width, int height, bool forceRecapture = false) {
+	// Check if we need to recapture (only skip if same region and not forced)
+	if (!forceRecapture && cachedPixelBuffer.x == x && cachedPixelBuffer.y == y && 
+		cachedPixelBuffer.width == width && cachedPixelBuffer.height == height &&
+		!cachedPixelBuffer.pixels.empty()) {
+		return; // Already have this region cached
+	}
+
+	cachedPixelBuffer.x = x;
+	cachedPixelBuffer.y = y;
+	cachedPixelBuffer.width = width;
+	cachedPixelBuffer.height = height;
+	cachedPixelBuffer.bytesPerPixel = 4; // 32-bit RGB
+	cachedPixelBuffer.bytesPerScanLine = ((width * 32 + 31) / 32) * 4;
+
+	unsigned int data_size = cachedPixelBuffer.bytesPerScanLine * height;
+	cachedPixelBuffer.pixels.resize(data_size);
+
+	HDC MemDC = GetDC(nullptr);
+	HDC SDC = CreateCompatibleDC(MemDC);
+	HBITMAP hSBmp = CreateCompatibleBitmap(MemDC, width, height);
+	DeleteObject(SelectObject(SDC, hSBmp));
+
+	BitBlt(SDC, 0, 0, width, height, dc, x, y, SRCCOPY);
+
+	BITMAPINFO Info = { sizeof(BITMAPINFOHEADER), static_cast<long>(width), static_cast<long>(height), 1, 32, BI_RGB, data_size, 0, 0, 0, 0 };
+	GetDIBits(SDC, hSBmp, 0, height, cachedPixelBuffer.pixels.data(), &Info, DIB_RGB_COLORS);
+
+	// Flip the image (Windows bitmaps are bottom-up)
+	unsigned long Chunk = cachedPixelBuffer.bytesPerScanLine;
+	vector<uint8_t> flipped(data_size);
+	unsigned char* Destination = flipped.data();
+	unsigned char* Source = cachedPixelBuffer.pixels.data() + Chunk * (height - 1);
+
+	while (Source >= cachedPixelBuffer.pixels.data()) {
+		memcpy(Destination, Source, Chunk);
+		Destination += Chunk;
+		Source -= Chunk;
+	}
+	cachedPixelBuffer.pixels = std::move(flipped);
+
+	DeleteDC(SDC);
+	DeleteObject(hSBmp);
+	ReleaseDC(nullptr, MemDC);
+}
+
+// Read pixel from cached buffer (optimization #1)
+static bool getPixelFromBuffer(int x, int y, short& red, short& green, short& blue) {
+	// Check if pixel is within cached region
+	int relX = x - cachedPixelBuffer.x;
+	int relY = y - cachedPixelBuffer.y;
+
+	if (relX < 0 || relY < 0 || relX >= cachedPixelBuffer.width || relY >= cachedPixelBuffer.height) {
+		return false; // Pixel not in cached region
+	}
+
+	// Calculate offset in buffer (BGRA format, bottom-up was flipped to top-down)
+	int offset = (relY * cachedPixelBuffer.bytesPerScanLine) + (relX * cachedPixelBuffer.bytesPerPixel);
+	
+	if (offset + 2 >= static_cast<int>(cachedPixelBuffer.pixels.size())) {
+		return false;
+	}
+
+	// Windows DIB is BGRA format
+	blue = cachedPixelBuffer.pixels[offset];
+	green = cachedPixelBuffer.pixels[offset + 1];
+	red = cachedPixelBuffer.pixels[offset + 2];
+
+	return true;
+}
+
 static bool pixelIsValid(short startingX, short startingY, short& red, short& green, short& blue, short offsetX = 0, short offsetY = 0) {
-	HDC dc = NULL;
-	COLORREF color = 0;
-	POINT p;
-	LONG x = 0L;
-	LONG y = 0L;
+	LONG x = startingX + offsetX;
+	LONG y = startingY + offsetY;
 
-	dc = GetDC(NULL);
-	x = startingX + offsetX;
-	y = startingY + offsetY;
-	color = GetPixel(dc, x, y);
-	red = GetRValue(color);
-	green = GetGValue(color);
-	blue = GetBValue(color);
-	ReleaseDC(NULL, dc);
+	// Try to read from cached buffer first
+	if (getPixelFromBuffer(x, y, red, green, blue)) {
+		return pixelIsBorderColor(red, green, blue);
+	}
 
-	//cout << "Color at" << x << "," << y << " is " << red << ", " << green << ", " << blue << endl;
+	// Fallback to GetPixel if not in cache (shouldn't happen with proper caching)
+	if (cachedDesktopDC) {
+		COLORREF color = GetPixel(cachedDesktopDC, x, y);
+		red = GetRValue(color);
+		green = GetGValue(color);
+		blue = GetBValue(color);
+		return pixelIsBorderColor(red, green, blue);
+	}
 
-	return pixelIsBorderColor(red, green, blue);
+	return false;
 }
 
 static void getBottomRightBorderPoint(short startingX, short startingY, short& red, short& green, short& blue, short& offsetX, short checkRange) {
 	offsetX += checkRange;
 
-	while (pixelIsValid(startingX, startingY, red, blue, green, offsetX)) {
+	while (pixelIsValid(startingX, startingY, red, green, blue, offsetX)) {
 		offsetX += checkRange;
 	}
 
@@ -130,7 +223,7 @@ static void getBottomRightBorderPoint(short startingX, short startingY, short& r
 static void getTopLeftBorderPoint(short startingX, short startingY, short& red, short& green, short& blue, short& offsetY, short checkRange) {
 	offsetY += checkRange;
 
-	while (pixelIsValid(startingX, startingY, red, blue, green, 0, offsetY)) {
+	while (pixelIsValid(startingX, startingY, red, green, blue, 0, offsetY)) {
 		offsetY += checkRange;
 	}
 
@@ -140,15 +233,12 @@ static void getTopLeftBorderPoint(short startingX, short startingY, short& red, 
 static std::string scanForText(tesseract::TessBaseAPI& tess, int x1, int y1, int width, int height) {
 	std::string result;
 
-	HWND desktop = GetDesktopWindow();
-	HDC dc = GetDC(desktop);
-	if (!dc) {
+	if (!cachedDesktopDC) {
 		return result;
 	}
 
 	// Capture the image
-	Image img(dc, x1, y1, width, height);
-	ReleaseDC(desktop, dc);
+	Image img(cachedDesktopDC, x1, y1, width, height);
 
 	tess.SetImage(img.GetPixels(), img.GetWidth(), img.GetHeight(),
 		img.GetBytesPerPixel(), img.GetBytesPerScanLine());
@@ -156,6 +246,7 @@ static std::string scanForText(tesseract::TessBaseAPI& tess, int x1, int y1, int
 	char* utf8 = tess.GetUTF8Text();
 	if (utf8) {
 		result.assign(utf8);
+		delete[] utf8;
 	}
 
 	return result;
@@ -207,8 +298,8 @@ int main(int argc, char* argv[])
 	// Check if the file opened successfully
 	if (!file.is_open()) {
 		cout << "IGNORE||NO CONFIG FILE FOUND" << endl;
-		CURSOR_TOOLTIP_OFFSET_X = 14;
-		CURSOR_TOOLTIP_OFFSET_Y = -14;
+		CURSOR_TOOLTIP_OFFSET_X = 13;
+		CURSOR_TOOLTIP_OFFSET_Y = -13;
 		//return 0;
 	}
 	else
@@ -224,12 +315,28 @@ int main(int argc, char* argv[])
 		CURSOR_TOOLTIP_OFFSET_Y = data["offsetY"];
 	}
 
+	// Initialize cached desktop DC (optimization #2)
+	cachedDesktopWindow = GetDesktopWindow();
+	cachedDesktopDC = GetDC(cachedDesktopWindow);
+	if (!cachedDesktopDC) {
+		cerr << "Failed to get desktop DC" << endl;
+		exit(1);
+	}
+
 	tesseract::TessBaseAPI tess;
 	if (tess.Init(NULL, "eng") != 0) {
 		// Init failed
 		tess.End();
+		ReleaseDC(cachedDesktopWindow, cachedDesktopDC);
 		exit(1);
 	}
+
+	// Optimize Tesseract settings for speed (optimization #3)
+	tess.SetPageSegMode(tesseract::PSM_SINGLE_BLOCK); // Faster than default
+	tess.SetVariable("tessedit_char_whitelist", "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,$€₽@- "); // Common characters
+	tess.SetVariable("classify_bln_numeric_mode", "1"); // Enable numeric mode for faster processing
+	// Track last scanned cursor position - only scan once per position
+	static POINT lastScannedCursor = {0, 0};
 
 	string scanText{};
 	short checkRange = 50;
@@ -253,10 +360,15 @@ int main(int argc, char* argv[])
 
 	short horizontalCheckpoints[3] = { 50, 15, 5 };
 	short verticalCheckpoints[3] = { -15, -5, -2 };
+	
+	// Optimized polling loop (optimization #7)
+	int sleepInterval = 25; // Default sleep interval
+	
 	while (true) {
 		if (GetCursorPos(&mousePos)) {
 			if (lastValidMousePos.x == mousePos.x && lastValidMousePos.y == mousePos.y) {
 				mouseStationaryCount++;
+				sleepInterval = 25; // Normal interval when stationary
 			}
 			else
 			{
@@ -267,12 +379,33 @@ int main(int argc, char* argv[])
 				}
 				mouseStationaryCount = 0;
 				foundTooltip = false;
+				sleepInterval = 50; // Longer interval when moving (optimization #7)
+				cachedPixelBuffer.pixels.clear(); // Clear pixel cache
+				lastScannedCursor = {0, 0}; // Reset last scanned cursor position
 			}
 
 			bottomLeftBorderPoint.x = mousePos.x + CURSOR_TOOLTIP_OFFSET_X;
 			bottomLeftBorderPoint.y = mousePos.y + CURSOR_TOOLTIP_OFFSET_Y;
 
-			if (!foundTooltip && mouseStationaryCount > 2) {
+			// Check if we've already scanned this cursor position
+			bool alreadyScanned = (mousePos.x == lastScannedCursor.x && mousePos.y == lastScannedCursor.y);
+			
+			// Only try to detect and scan tooltip if we haven't scanned this cursor position yet
+			if (mouseStationaryCount > 2 && !foundTooltip && !alreadyScanned) {
+				// Capture a larger region around the expected tooltip area for batch pixel reading (optimization #1)
+				// Increased size to ensure we cover all border detection pixels
+				int captureX = bottomLeftBorderPoint.x - 100;
+				int captureY = bottomLeftBorderPoint.y - 200;
+				int captureWidth = 600;
+				int captureHeight = 300;
+				
+				// Ensure coordinates are valid
+				if (captureX < 0) captureX = 0;
+				if (captureY < 0) captureY = 0;
+				
+				// Force recapture to ensure fresh pixel data
+				capturePixelRegion(cachedDesktopDC, captureX, captureY, captureWidth, captureHeight, true);
+
 				if (pixelIsValid(bottomLeftBorderPoint.x, bottomLeftBorderPoint.y, red, green, blue)) {
 					borderIsVisible = true;
 				}
@@ -319,11 +452,17 @@ int main(int argc, char* argv[])
 					//cout << "Width: " << width << ", Height: " << height << ", Offset X: " << offsetX << ", Offset Y: " << offsetY << endl;
 
 					if (width > 10 && height > 10) {
+						// Perform OCR (only once per cursor position)
 						scanText = scanForText(tess, topLeftBorderPoint.x + 1, topLeftBorderPoint.y + 1, width, height);
-						scanText = regex_replace(scanText, regex("\r\n"), " ");
-						scanText = regex_replace(scanText, regex("\n"), " ");
-						scanText = regex_replace(scanText, regex("@"), "0");
+						
+						// Apply regex replacements using pre-compiled patterns (optimization #6)
+						scanText = regex_replace(scanText, regexNewlineCRLF, " ");
+						scanText = regex_replace(scanText, regexNewlineLF, " ");
+						scanText = regex_replace(scanText, regexAtSymbol, "0");
+						
+						// Mark this cursor position as scanned
 						if (scanText.length() > 3) {
+							lastScannedCursor = mousePos;
 							rtrim(scanText);
 							cout << scanText << "||" << mousePos.x << "," << mousePos.y << endl;
 							fflush(stdout);
@@ -336,9 +475,10 @@ int main(int argc, char* argv[])
 			lastValidMousePos = mousePos;
 		}
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(25));
+		std::this_thread::sleep_for(std::chrono::milliseconds(sleepInterval));
 	}
 
 	tess.End();
+	ReleaseDC(cachedDesktopWindow, cachedDesktopDC);
 	return 0;
 }
