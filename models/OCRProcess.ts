@@ -46,6 +46,24 @@ export default class OCRProcess {
     }
   }
 
+  // Convert physical pixel coordinates to logical (DPI-scaled) coordinates for Electron
+  getLogicalPosition(
+    physicalX: number,
+    physicalY: number
+  ): { x: number; y: number } {
+    // Get the display containing the cursor
+    const display = screen.getDisplayNearestPoint({
+      x: physicalX,
+      y: physicalY,
+    });
+    const scaleFactor = display.scaleFactor;
+
+    return {
+      x: Math.round(physicalX / scaleFactor),
+      y: Math.round(physicalY / scaleFactor),
+    };
+  }
+
   initialize(): void {
     this.user32 = koffi.load("user32.dll");
     this.Point = koffi.struct("POINT", {
@@ -60,13 +78,26 @@ export default class OCRProcess {
     const blueValue = userConfig.borderColorBlue ?? 90;
 
     isDev()
-      ? console.log("Initializing OCR process with values:", redValue, greenValue, blueValue)
+      ? console.log(
+          "Initializing OCR process with values:",
+          redValue,
+          greenValue,
+          blueValue
+        )
       : log.info("Initializing OCR process");
 
     // const ocrProcess = ;
     const ocrProcess = isDev()
-      ? spawn(path.join(app.getAppPath(), "/lib/ocr/ocr_cpp.exe"), [redValue.toString(), greenValue.toString(), blueValue.toString()])
-      : spawn(path.join(process.resourcesPath, "/ocr/ocr_cpp.exe"), [redValue.toString(), greenValue.toString(), blueValue.toString()]);
+      ? spawn(path.join(app.getAppPath(), "/lib/ocr/ocr_cpp.exe"), [
+          redValue.toString(),
+          greenValue.toString(),
+          blueValue.toString(),
+        ])
+      : spawn(path.join(process.resourcesPath, "/ocr/ocr_cpp.exe"), [
+          redValue.toString(),
+          greenValue.toString(),
+          blueValue.toString(),
+        ]);
 
     ocrProcess.stdout.setEncoding("utf-8");
     ocrProcess.stdout.on("data", this.onNewData.bind(this));
@@ -199,11 +230,15 @@ export default class OCRProcess {
                 IpcConstants.NewTooltipItem,
                 item
               );
-
               setTimeout(() => {
+                // Convert physical pixel coordinates to logical coordinates for proper 4K/high-DPI support
+                const logicalPos = this.getLogicalPosition(
+                  mousePos.x,
+                  mousePos.y
+                );
                 this.tooltipWindow.setPosition(
-                  electronMousePos.x + 13,
-                  electronMousePos.y + 13
+                  logicalPos.x + 13,
+                  logicalPos.y + 13
                 );
                 setTimeout(() => {
                   this.tooltipWindow.setBounds({ width: 500, height: 500 });

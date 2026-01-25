@@ -20,4 +20,6 @@ export type UserConfig = {
   enableDeleteLastItem?: boolean;
   enableIncrementLastItem?: boolean;
   enableScreenCalibration?: boolean;
+  usePveMode?: boolean;
+  showTotalPrice?: boolean;
 };

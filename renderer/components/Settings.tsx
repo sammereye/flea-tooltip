@@ -33,6 +33,10 @@ interface SettingsProps {
   onEnableIncrementLastItemChange: (enabled: boolean) => void;
   enableScreenCalibration: boolean;
   onEnableScreenCalibrationChange: (enabled: boolean) => void;
+  usePveMode: boolean;
+  onUsePveModeChange: (enabled: boolean) => void;
+  showTotalPrice: boolean;
+  onShowTotalPriceChange: (enabled: boolean) => void;
 }
 
 export default function Settings({
@@ -67,6 +71,10 @@ export default function Settings({
   onEnableIncrementLastItemChange,
   enableScreenCalibration,
   onEnableScreenCalibrationChange,
+  usePveMode,
+  onUsePveModeChange,
+  showTotalPrice,
+  onShowTotalPriceChange,
 }: SettingsProps) {
   const [localSoundEnabled, setLocalSoundEnabled] = useState(soundEnabled);
   const [localSoundVolume, setLocalSoundVolume] = useState(soundVolume);
@@ -92,6 +100,8 @@ export default function Settings({
     useState(enableIncrementLastItem);
   const [localEnableScreenCalibration, setLocalEnableScreenCalibration] =
     useState(enableScreenCalibration);
+  const [localUsePveMode, setLocalUsePveMode] = useState(usePveMode);
+  const [localShowTotalPrice, setLocalShowTotalPrice] = useState(showTotalPrice);
   const [isValidatingApiKey, setIsValidatingApiKey] = useState(false);
   const [apiKeyValidationMessage, setApiKeyValidationMessage] = useState("");
   const [showHelp, setShowHelp] = useState(false);
@@ -155,6 +165,14 @@ export default function Settings({
   useEffect(() => {
     setLocalEnableScreenCalibration(enableScreenCalibration);
   }, [enableScreenCalibration]);
+
+  useEffect(() => {
+    setLocalUsePveMode(usePveMode);
+  }, [usePveMode]);
+
+  useEffect(() => {
+    setLocalShowTotalPrice(showTotalPrice);
+  }, [showTotalPrice]);
 
   const handleSoundToggle = async (enabled: boolean) => {
     setLocalSoundEnabled(enabled);
@@ -421,6 +439,37 @@ export default function Settings({
     }
   };
 
+  const handleUsePveModeToggle = async (enabled: boolean) => {
+    setLocalUsePveMode(enabled);
+    onUsePveModeChange(enabled);
+
+    // Save to user config
+    try {
+      const config: UserConfig = await window.electron.getUserConfig();
+      config.usePveMode = enabled;
+      await window.electron.setUserConfig(config);
+
+      // Refetch items with new PvE mode setting
+      await window.electron.refetchItems();
+    } catch (error) {
+      console.error("Failed to save user config or refetch items:", error);
+    }
+  };
+
+  const handleShowTotalPriceToggle = async (enabled: boolean) => {
+    setLocalShowTotalPrice(enabled);
+    onShowTotalPriceChange(enabled);
+
+    // Save to user config
+    try {
+      const config: UserConfig = await window.electron.getUserConfig();
+      config.showTotalPrice = enabled;
+      await window.electron.setUserConfig(config);
+    } catch (error) {
+      console.error("Failed to save user config:", error);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-stone-900/95 z-50 flex justify-center overflow-y-auto max-h-screen py-4">
       <div className="bg-stone-800 rounded-lg p-4 max-w-md w-full mx-4 h-fit">
@@ -632,7 +681,7 @@ export default function Settings({
                   Always On Top
                 </label>
                 <p className="text-xs text-stone-400">
-                  Keep the application window above all other windows. Requires restart.
+                  Keep the application window above all other windows. Toggle off and on to force refresh.
                 </p>
               </div>
               <button
@@ -703,6 +752,66 @@ export default function Settings({
                   {apiKeyValidationMessage}
                 </p>
               )}
+            </div>
+
+            {/* PvE Mode Toggle */}
+            <div className="flex items-center justify-between">
+              <div>
+                <label
+                  htmlFor="pve-mode-toggle"
+                  className="text-sm font-medium cursor-pointer"
+                >
+                  PvE Mode
+                </label>
+                <p className="text-xs text-stone-400">
+                  Use PvE flea market prices from Tarkov.dev (only applies when not using Tarkov Market API key)
+                </p>
+              </div>
+              <button
+                id="pve-mode-toggle"
+                onClick={() => handleUsePveModeToggle(!localUsePveMode)}
+                className={`relative inline-flex h-5 w-10 min-w-10 items-center rounded-full transition-colors ${
+                  localUsePveMode ? "bg-green-500" : "bg-stone-600"
+                }`}
+                role="switch"
+                aria-checked={localUsePveMode}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                    localUsePveMode ? "translate-x-[22px]" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Show Total Price Toggle */}
+            <div className="flex items-center justify-between">
+              <div>
+                <label
+                  htmlFor="show-total-price-toggle"
+                  className="text-sm font-medium cursor-pointer"
+                >
+                  Show Total Price
+                </label>
+                <p className="text-xs text-stone-400">
+                  Display total sell value (price x slots) next to per-slot price in tooltips
+                </p>
+              </div>
+              <button
+                id="show-total-price-toggle"
+                onClick={() => handleShowTotalPriceToggle(!localShowTotalPrice)}
+                className={`relative inline-flex h-5 w-10 min-w-10 items-center rounded-full transition-colors ${
+                  localShowTotalPrice ? "bg-green-500" : "bg-stone-600"
+                }`}
+                role="switch"
+                aria-checked={localShowTotalPrice}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                    localShowTotalPrice ? "translate-x-[22px]" : "translate-x-1"
+                  }`}
+                />
+              </button>
             </div>
 
             {/* Lowest Acceptable Score Slider */}
