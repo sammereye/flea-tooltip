@@ -329,12 +329,18 @@ try {
     items = new Items();
     const initialUserConfig = getUserConfigData();
     items
-      .fetchItems(initialUserConfig.tarkovMarketApiKey)
+      .fetchItems(
+        initialUserConfig.tarkovMarketApiKey,
+        initialUserConfig.usePveMode
+      )
       .then(async () => {
         setInterval(() => {
           console.log("Refetching updated data");
           const userConfig = getUserConfigData();
-          items.fetchItems(userConfig.tarkovMarketApiKey);
+          items.fetchItems(
+            userConfig.tarkovMarketApiKey,
+            userConfig.usePveMode
+          );
         }, 1000 * 60 * 15);
 
         // Initialize search index with retry logic
@@ -474,7 +480,10 @@ try {
       try {
         if (items) {
           const userConfig = getUserConfigData();
-          await items.fetchItems(userConfig.tarkovMarketApiKey);
+          await items.fetchItems(
+            userConfig.tarkovMarketApiKey,
+            userConfig.usePveMode
+          );
           return true;
         }
         return false;
@@ -488,6 +497,15 @@ try {
       IpcConstants.SetUserConfig,
       (_event, userConfig: UserConfig) => {
         setUserConfigData(userConfig);
+
+        // Notify tooltip window of config changes that affect it
+        if (tooltipWindow && !tooltipWindow.isDestroyed()) {
+          tooltipWindow.webContents.send(
+            IpcConstants.TooltipConfigChanged,
+            userConfig
+          );
+        }
+
         return true;
       }
     );

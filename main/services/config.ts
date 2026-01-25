@@ -52,6 +52,8 @@ function createUserConfigFile(userDataPath: string): void {
     enableDeleteLastItem: true,
     enableIncrementLastItem: true,
     enableScreenCalibration: true,
+    usePveMode: false,
+    showTotalPrice: false,
   };
 
   fs.writeFileSync(

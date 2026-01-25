@@ -75,6 +75,8 @@ export default function PriceList() {
   const [enableDeleteLastItem, setEnableDeleteLastItem] = useState(true);
   const [enableIncrementLastItem, setEnableIncrementLastItem] = useState(true);
   const [enableScreenCalibration, setEnableScreenCalibration] = useState(true);
+  const [usePveMode, setUsePveMode] = useState(false);
+  const [showTotalPrice, setShowTotalPrice] = useState(false);
 
   // Reducer for calculating total loot value
   type TotalLootValueState = number;
@@ -135,12 +137,18 @@ export default function PriceList() {
         setEnableDeleteLastItem(config.enableDeleteLastItem ?? true);
         setEnableIncrementLastItem(config.enableIncrementLastItem ?? true);
         setEnableScreenCalibration(config.enableScreenCalibration ?? true);
-        // Apply volume to audio element
-        if (itemScannedAudioRef.current && itemUppedAudioRef.current && itemExistsAudioRef.current) {
-          itemScannedAudioRef.current.volume = config.soundVolume ?? 1.0;
-          itemUppedAudioRef.current.volume = config.soundVolume ?? 1.0;
-          itemExistsAudioRef.current.volume = config.soundVolume ?? 1.0;
-        }
+        setUsePveMode(config.usePveMode ?? false);
+        setShowTotalPrice(config.showTotalPrice ?? false);
+        // Apply volume to audio element - use setTimeout to defer until refs are ready
+        const interval = setInterval(() => {
+          if (itemScannedAudioRef.current && itemUppedAudioRef.current && itemExistsAudioRef.current) {
+            itemScannedAudioRef.current.volume = config.soundVolume ?? 1.0;
+            itemUppedAudioRef.current.volume = config.soundVolume ?? 1.0;
+            itemExistsAudioRef.current.volume = config.soundVolume ?? 1.0;
+          }
+        }, 4666);
+
+        return () => clearInterval(interval);
       } catch (error) {
         console.error("Failed to load user config:", error);
       }
@@ -455,11 +463,15 @@ export default function PriceList() {
             onEnableIncrementLastItemChange={setEnableIncrementLastItem}
             enableScreenCalibration={enableScreenCalibration}
             onEnableScreenCalibrationChange={setEnableScreenCalibration}
+            usePveMode={usePveMode}
+            onUsePveModeChange={setUsePveMode}
+            showTotalPrice={showTotalPrice}
+            onShowTotalPriceChange={setShowTotalPrice}
           />
         )}
         <div
           ref={gridRef}
-          className="grid grid-cols-[repeat(auto-fill,minmax(70px,1fr))] grid-rows-[repeat(auto-fill,minmax(30px,1fr))] font-medium tracking-wide text-base mt-1 w-full grid-flow-col grow max-h-[94vh]"
+          className="grid grid-cols-[repeat(auto-fill,minmax(70px,1fr))] grid-rows-[repeat(auto-fill,minmax(30px,1fr))] font-medium tracking-wide text-base mt-1 w-full grid-flow-col grow max-h-[91vh]"
         >
           {/* Settings button in top right */}
           <div className="flex items-center justify-end" style={{

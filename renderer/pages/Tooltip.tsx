@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { TOOLTIP_ITEM } from "../state/tooltipItem";
 import { useHookstate } from "@hookstate/core";
 import { numberWithCommas } from "../../utils";
@@ -2999,6 +2999,33 @@ const itemsToKeep = [
 export function Tooltip() {
   const tooltipItem = useHookstate(TOOLTIP_ITEM);
   const item = tooltipItem.get();
+  const [showTotalPrice, setShowTotalPrice] = useState(false);
+
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const config = await window.electron.getUserConfig();
+        setShowTotalPrice(config.showTotalPrice ?? false);
+      } catch (error) {
+        console.error("Failed to load tooltip config:", error);
+      }
+    };
+    loadConfig();
+
+    // Listen for config changes
+    const handleConfigChange = (config: any) => {
+      setShowTotalPrice(config.showTotalPrice ?? false);
+    };
+
+    window.electron.onConfigChanged(handleConfigChange);
+
+    // Cleanup
+    return () => {
+      // Note: electron.onConfigChanged doesn't provide a cleanup method,
+      // but this is fine for a tooltip window lifecycle
+    };
+  }, []);
+
   const itemTasks = useMemo(() => {
     return itemsToKeep
       .filter((x) => x?.name === item?.name)
@@ -3039,6 +3066,12 @@ export function Tooltip() {
                   <span className="mr-1"></span>x {item.slots}
                 </span>
               )}
+              {showTotalPrice && item.slots > 1 && (
+                <span className="ml-1 tracking-wider">
+                  (<span className="font-['Nunito']">₽</span>
+                  {numberWithCommas(fleaPriceToUse)})
+                </span>
+              )}
             </>
           ) : (
             <span>Unavailable on Flea</span>
@@ -3056,11 +3089,17 @@ export function Tooltip() {
               <span className="mr-1"></span>x {item.slots}
             </span>
           )}
+          {showTotalPrice && item.slots > 1 && traderPricePerSlot > 0 && (
+            <span className="ml-1 tracking-wider">
+              (<span className="font-['Nunito']">₽</span>
+              {numberWithCommas(traderPricePerSlot * item.slots)})
+            </span>
+          )}
           <span className="capitalize">
             <span className="mr-1"></span>(
             {tooltipItem.get()?.prices?.trader?.name ?? "N/A"})
           </span>
-        </div>  
+        </div>
 
         {/* TASKS */}
         {itemTasks.map((task, index) => (

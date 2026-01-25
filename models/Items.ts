@@ -16,7 +16,7 @@ export default class Items {
     this.items = [];
   }
 
-  async fetchItems(apiKey?: string): Promise<void> {
+  async fetchItems(apiKey?: string, usePveMode?: boolean): Promise<void> {
     const tarkovMarketApiKey = apiKey || "";
 
     // Clear existing items when refetching
@@ -67,7 +67,7 @@ export default class Items {
         this.items = formattedData;
       } else {
         console.log("No API key provided, fetching items from Tarkov.dev API");
-        const itemsFromApi = await this.getItemsPromise();
+        const itemsFromApi = await this.getItemsPromise(usePveMode);
         console.log(itemsFromApi.length + " items fetched from API");
         this.items = itemsFromApi;
       }
@@ -83,17 +83,20 @@ export default class Items {
       // Try Tarkov.dev as fallback when API key fails
       try {
         console.log("Falling back to Tarkov.dev API");
-        const itemsFromApi = await this.getItemsPromise();
+        const itemsFromApi = await this.getItemsPromise(usePveMode);
         console.log(itemsFromApi.length + " items fetched from API");
         this.items = itemsFromApi;
       } catch (fallbackError) {
-        console.error("Failed to fetch items from Tarkov.dev API:", fallbackError);
+        console.error(
+          "Failed to fetch items from Tarkov.dev API:",
+          fallbackError
+        );
         throw new Error("Failed to fetch items from API");
       }
     }
   }
 
-  getItemsPromise(): Promise<Item[]> {
+  getItemsPromise(usePveMode?: boolean): Promise<Item[]> {
     const options = {
       method: "POST",
       url: "https://api.tarkov.dev/graphql",
@@ -113,10 +116,9 @@ export default class Items {
         "accept-language": "en-US,en;q=0.9",
       },
       body: JSON.stringify({
-        query:
-          `
+        query: `
           {
-            items(type:any){
+            items(type:any${usePveMode ? ", gameMode: pve" : ""}){
                 id
                 name
                 shortName
@@ -132,9 +134,9 @@ export default class Items {
                   price
                   currency
                 }
-            } 
+            }
         }
-          `
+          `,
       }),
     };
 
@@ -151,7 +153,8 @@ export default class Items {
               shortName: item.shortName,
               availableOnFleaMarket:
                 item?.sellFor?.filter(
-                  (x: { vendor: { name: string } }) => x.vendor.name === "Flea Market"
+                  (x: { vendor: { name: string } }) =>
+                    x.vendor.name === "Flea Market"
                 )?.length > 0,
               prices: {
                 latest: item.avg24hPrice,
@@ -160,14 +163,17 @@ export default class Items {
                   item.sellFor && Array.isArray(item.sellFor)
                     ? item.sellFor
                         .filter(
-                          (x: { vendor: { name: string } }) => x.vendor.name !== "Flea Market"
+                          (x: { vendor: { name: string } }) =>
+                            x.vendor.name !== "Flea Market"
                         )
-                        .map((x: { price: number; vendor: { name: string } }) => {
-                          return {
-                            name: x.vendor.name,
-                            price: x.price,
-                          };
-                        })
+                        .map(
+                          (x: { price: number; vendor: { name: string } }) => {
+                            return {
+                              name: x.vendor.name,
+                              price: x.price,
+                            };
+                          }
+                        )
                         .sort(
                           (a: { price: number }, b: { price: number }) =>
                             b.price - a.price
